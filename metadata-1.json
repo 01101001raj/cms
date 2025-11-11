@@ -1,0 +1,5 @@
+{
+  "name": "Distributor Management Portal",
+  "description": "A web-based portal for managing distributors, products, orders, and wallet balances. Data is managed via a backend and visualized in this interface.",
+  "requestFramePermissions": []
+}
