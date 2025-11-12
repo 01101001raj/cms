@@ -158,8 +158,8 @@ export const createDistributorService = (supabase: SupabaseClient) => ({
             gstin: distributorData.gstin,
             billing_address: distributorData.billingAddress,
             has_special_schemes: distributorData.hasSpecialSchemes,
-            asm_name: distributorData.asmName,
-            executive_name: distributorData.executiveName,
+            asm_name: distributorData.asmName || null,
+            executive_name: distributorData.executiveName || null,
             price_tier_id: distributorData.priceTierId || null,
             store_id: distributorData.storeId || portalState?.id || null
         }).select().single();
