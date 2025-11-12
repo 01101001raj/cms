@@ -106,19 +106,33 @@ const DistributorOnboarding: React.FC = () => {
         setIsLoading(true);
         setStatusMessage(null);
         try {
-            const { 
-                hasGstin, 
-                createInitialScheme, 
-                scheme_description, 
-                scheme_buySkuId, 
-                scheme_buyQuantity, 
-                scheme_getSkuId, 
-                scheme_getQuantity, 
-                scheme_startDate, 
-                scheme_endDate, 
-                ...distributorData 
+            const {
+                hasGstin,
+                createInitialScheme,
+                scheme_description,
+                scheme_buySkuId,
+                scheme_buyQuantity,
+                scheme_getSkuId,
+                scheme_getQuantity,
+                scheme_startDate,
+                scheme_endDate,
+                ...distributorData
             } = data;
-            
+
+            // Convert empty string to undefined for optional fields
+            if (distributorData.storeId === '') {
+                distributorData.storeId = undefined;
+            }
+            if (distributorData.priceTierId === '') {
+                distributorData.priceTierId = undefined;
+            }
+            if (distributorData.asmName === '') {
+                distributorData.asmName = undefined;
+            }
+            if (distributorData.executiveName === '') {
+                distributorData.executiveName = undefined;
+            }
+
             let initialScheme;
             if (createInitialScheme && scheme_description) {
               initialScheme = {
