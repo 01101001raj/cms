@@ -215,10 +215,10 @@ export const createDistributorService = (supabase: SupabaseClient) => ({
             gstin: updateData.gstin,
             billing_address: updateData.billingAddress,
             has_special_schemes: updateData.hasSpecialSchemes,
-            asm_name: updateData.asmName,
-            executive_name: updateData.executiveName,
-            price_tier_id: updateData.priceTierId,
-            store_id: updateData.storeId
+            asm_name: updateData.asmName || null,
+            executive_name: updateData.executiveName || null,
+            price_tier_id: updateData.priceTierId || null,
+            store_id: updateData.storeId || null
         }).eq('id', id).select().single();
         const result = handleResponse({ data, error });
         return {
