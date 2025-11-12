@@ -17,11 +17,20 @@ interface FormInputs {
   amount: number;
   paymentMethod: 'Cash' | 'UPI' | 'Bank Transfer' | 'Credit';
   remarks: string;
+  rechargeDate: string;
 }
 
 const RechargeWallet: React.FC = () => {
   const location = useLocation();
   const { currentUser, portal } = useAuth();
+  const getTodayDate = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const { register, handleSubmit, formState: { errors, isValid }, watch, reset, setValue } = useForm<FormInputs>({
     mode: 'onBlur',
     defaultValues: {
@@ -29,6 +38,7 @@ const RechargeWallet: React.FC = () => {
       amount: undefined,
       paymentMethod: 'Cash',
       remarks: '',
+      rechargeDate: getTodayDate(),
     }
   });
 
@@ -97,7 +107,7 @@ const RechargeWallet: React.FC = () => {
   };
 
   useEffect(() => {
-      reset({ accountId: '', amount: undefined, paymentMethod: 'Cash', remarks: '' });
+      reset({ accountId: '', amount: undefined, paymentMethod: 'Cash', remarks: '', rechargeDate: getTodayDate() });
   }, [accountType, reset]);
 
   useEffect(() => {
@@ -130,12 +140,12 @@ const RechargeWallet: React.FC = () => {
 
   const onSubmit: SubmitHandler<FormInputs> = async (data) => {
     const accountName = selectedAccount?.name;
-    
+
     if (window.confirm(`Are you sure you want to add ${formatIndianCurrency(Number(data.amount))} to ${accountName}'s wallet? This action cannot be undone.`)) {
       setIsLoading(true);
       setStatusMessage(null);
       try {
-        const rechargeDate = new Date().toISOString();
+        const rechargeDate = new Date(data.rechargeDate).toISOString();
 
         if (accountType === 'distributor') {
             await api.rechargeWallet(data.accountId, Number(data.amount), currentUser!.username, data.paymentMethod, data.remarks, rechargeDate, portal);
@@ -154,7 +164,7 @@ const RechargeWallet: React.FC = () => {
         setStores(updatedStores);
         setAllTransactions(allTxs);
 
-        reset({ accountId: '', amount: undefined, paymentMethod: 'Cash', remarks: '' });
+        reset({ accountId: '', amount: undefined, paymentMethod: 'Cash', remarks: '', rechargeDate: getTodayDate() });
       } catch (error) {
         // FIX: The 'error' object from a catch block is of type 'unknown'. It must be type-checked before its properties can be accessed.
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
@@ -225,6 +235,17 @@ const RechargeWallet: React.FC = () => {
                 min: { value: 1, message: 'Amount must be greater than zero' }
               })}
               error={errors.amount?.message}
+            />
+
+            <Input
+              id="rechargeDate"
+              label="Recharge Date"
+              type="date"
+              max={getTodayDate()}
+              {...register('rechargeDate', {
+                required: 'Date is required'
+              })}
+              error={errors.rechargeDate?.message}
             />
 
             <div>
