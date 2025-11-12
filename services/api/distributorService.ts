@@ -149,6 +149,13 @@ export const createDistributorService = (supabase: SupabaseClient) => ({
     },
     
     async addDistributor(distributorData: Omit<Distributor, 'id' | 'walletBalance' | 'dateAdded'>, portalState: PortalState | null, initialScheme?: Omit<Scheme, 'id' | 'isGlobal' | 'distributorId' | 'storeId' | 'stoppedBy' | 'stoppedDate'>): Promise<Distributor> {
+        console.log('DEBUG addDistributor:', {
+            storeId: distributorData.storeId,
+            storeIdType: typeof distributorData.storeId,
+            storeIdUndefined: distributorData.storeId === undefined,
+            portalState,
+            finalStoreId: distributorData.storeId !== undefined ? distributorData.storeId : (portalState?.type === 'store' ? portalState.id : null)
+        });
         const { data: dist, error: distError } = await supabase.from('distributors').insert({
             name: distributorData.name,
             phone: distributorData.phone,
@@ -161,7 +168,7 @@ export const createDistributorService = (supabase: SupabaseClient) => ({
             asm_name: distributorData.asmName || null,
             executive_name: distributorData.executiveName || null,
             price_tier_id: distributorData.priceTierId || null,
-            store_id: distributorData.storeId || portalState?.id || null
+            store_id: distributorData.storeId !== undefined ? distributorData.storeId : (portalState?.type === 'store' ? portalState.id : null)
         }).select().single();
 
         const newDistributor = handleResponse({ data: dist, error: distError });
