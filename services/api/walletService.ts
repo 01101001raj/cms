@@ -53,59 +53,50 @@ export const createWalletService = (supabase: SupabaseClient) => ({
     async rechargeWallet(distributorId: string, amount: number, username: string, paymentMethod: string, remarks: string, date: string, portal: PortalState | null): Promise<void> {
         if (!portal) throw new Error("Portal context is required.");
 
-        const { data: dist, error: distError } = await supabase
-            .from('distributors')
-            .select('wallet_balance, store_id')
-            .eq('id', distributorId)
-            .single();
-        
-        if (distError) throw new Error(`Distributor not found: ${distError.message}`);
-
-        if (portal.type === 'store' && dist.store_id !== portal.id) {
-            throw new Error("Permission denied. You can only recharge wallets for distributors assigned to your store.");
-        }
-        
-        const newBalance = dist.wallet_balance + amount;
-        
-        const { error: updateError } = await supabase
-            .from('distributors')
-            .update({ wallet_balance: newBalance })
-            .eq('id', distributorId);
-
-        if (updateError) throw updateError;
-        
-        const { error: txError } = await supabase.from('wallet_transactions').insert({
-            distributor_id: distributorId,
-            date: date,
-            type: TransactionType.RECHARGE,
-            amount: amount,
-            balance_after: newBalance,
-            payment_method: paymentMethod,
-            remarks: remarks,
-            initiated_by: username,
+        // Call backend API instead of directly manipulating database
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+        const response = await fetch(`${apiUrl}/wallet/recharge`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                distributorId,
+                amount,
+                username,
+                paymentMethod,
+                remarks,
+                date
+            }),
         });
-        if (txError) throw txError;
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Failed to recharge wallet');
+        }
     },
     
     async rechargeStoreWallet(storeId: string, amount: number, username: string, paymentMethod: string, remarks: string, date: string): Promise<void> {
-        const { data: store, error: storeError } = await supabase.from('stores').select('wallet_balance').eq('id', storeId).single();
-        if (storeError) throw storeError;
-
-        const newBalance = store.wallet_balance + amount;
-
-        const { error: updateError } = await supabase.from('stores').update({ wallet_balance: newBalance }).eq('id', storeId);
-        if (updateError) throw updateError;
-
-        const { error: txError } = await supabase.from('wallet_transactions').insert({
-            store_id: storeId,
-            date: date,
-            type: TransactionType.RECHARGE,
-            amount: amount,
-            balance_after: newBalance,
-            payment_method: paymentMethod,
-            remarks: remarks,
-            initiated_by: username,
+        // Call backend API instead of directly manipulating database
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+        const response = await fetch(`${apiUrl}/wallet/recharge`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                storeId,
+                amount,
+                username,
+                paymentMethod,
+                remarks,
+                date
+            }),
         });
-        if (txError) throw txError;
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Failed to recharge wallet');
+        }
     }
 });
