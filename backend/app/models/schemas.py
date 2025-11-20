@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
@@ -85,15 +85,17 @@ class PortalState(BaseModel):
 
 
 class Store(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True, ser_json_by_alias=True)
+
     id: str
     name: str
     location: str
-    addressLine1: str
-    addressLine2: str
+    address_line1: str = Field(serialization_alias="addressLine1", validation_alias="address_line1")
+    address_line2: str = Field(serialization_alias="addressLine2", validation_alias="address_line2")
     email: str
     phone: str
     gstin: str
-    walletBalance: float
+    wallet_balance: float = Field(serialization_alias="walletBalance", validation_alias="wallet_balance")
 
 
 class StoreCreate(BaseModel):
@@ -107,21 +109,23 @@ class StoreCreate(BaseModel):
 
 
 class Distributor(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True, use_enum_values=True, ser_json_by_alias=True)
+
     id: str
     name: str
     phone: str
     state: str
     area: str
-    creditLimit: float
+    credit_limit: float = Field(serialization_alias="creditLimit", validation_alias="credit_limit")
     gstin: str
-    billingAddress: str
-    hasSpecialSchemes: bool
-    asmName: str
-    executiveName: str
-    walletBalance: float
-    dateAdded: str
-    priceTierId: Optional[str] = None
-    storeId: Optional[str] = None
+    billing_address: str = Field(serialization_alias="billingAddress", validation_alias="billing_address")
+    has_special_schemes: bool = Field(serialization_alias="hasSpecialSchemes", validation_alias="has_special_schemes")
+    asm_name: str = Field(serialization_alias="asmName", validation_alias="asm_name")
+    executive_name: str = Field(serialization_alias="executiveName", validation_alias="executive_name")
+    wallet_balance: float = Field(serialization_alias="walletBalance", validation_alias="wallet_balance")
+    date_added: str = Field(serialization_alias="dateAdded", validation_alias="date_added")
+    price_tier_id: Optional[str] = Field(None, serialization_alias="priceTierId", validation_alias="price_tier_id")
+    store_id: Optional[str] = Field(None, serialization_alias="storeId", validation_alias="store_id")
 
 
 class DistributorCreate(BaseModel):
@@ -196,37 +200,44 @@ class OrderItem(BaseModel):
 class OrderItemCreate(BaseModel):
     skuId: str
     quantity: int
+    unitPrice: Optional[float] = None  # For items with price tiers
+    isFreebie: Optional[bool] = False  # For scheme freebies
 
 
 class Order(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True, ser_json_by_alias=True)
+
     id: str
-    distributorId: str
+    distributor_id: str = Field(serialization_alias="distributorId", validation_alias="distributor_id")
     date: str
-    totalAmount: float
+    total_amount: float = Field(serialization_alias="totalAmount", validation_alias="total_amount")
     status: OrderStatus
-    placedByExecId: str
-    deliveredDate: Optional[str] = None
+    placed_by_exec_id: str = Field(serialization_alias="placedByExecId", validation_alias="placed_by_exec_id")
+    delivered_date: Optional[str] = Field(default=None, serialization_alias="deliveredDate", validation_alias="delivered_date")
 
 
 class OrderCreate(BaseModel):
     distributorId: str
     items: List[OrderItemCreate]
     username: str
+    totalAmount: float  # Pre-calculated by frontend including GST, schemes, and price tiers
 
 
 class WalletTransaction(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True, ser_json_by_alias=True)
+
     id: str
-    distributorId: Optional[str] = None
-    storeId: Optional[str] = None
+    distributor_id: Optional[str] = Field(None, serialization_alias="distributorId", validation_alias="distributor_id")
+    store_id: Optional[str] = Field(None, serialization_alias="storeId", validation_alias="store_id")
     date: str
     type: TransactionType
     amount: float
-    balanceAfter: float
-    orderId: Optional[str] = None
-    transferId: Optional[str] = None
-    paymentMethod: Optional[str] = None
+    balance_after: float = Field(serialization_alias="balanceAfter", validation_alias="balance_after")
+    order_id: Optional[str] = Field(None, serialization_alias="orderId", validation_alias="order_id")
+    transfer_id: Optional[str] = Field(None, serialization_alias="transferId", validation_alias="transfer_id")
+    payment_method: Optional[str] = Field(None, serialization_alias="paymentMethod", validation_alias="payment_method")
     remarks: Optional[str] = None
-    initiatedBy: str
+    initiated_by: str = Field(serialization_alias="initiatedBy", validation_alias="initiated_by")
 
 
 class WalletRecharge(BaseModel):

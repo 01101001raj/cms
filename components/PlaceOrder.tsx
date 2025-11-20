@@ -284,11 +284,39 @@ const PlaceOrder: React.FC = () => {
 
     const handleAddItem = () => {
         if (skus.length > 0) {
-            setActionItems([...actionItems, { id: Date.now().toString(), skuId: skus[0].id, quantity: 1 }]);
+            // Find the first SKU that's not already in the list
+            const usedSkuIds = new Set(actionItems.map(item => item.skuId));
+            const availableSku = skus.find(sku => !usedSkuIds.has(sku.id));
+
+            // If all SKUs are used, add the first one (it will be merged)
+            const skuIdToAdd = availableSku ? availableSku.id : skus[0].id;
+
+            setActionItems([...actionItems, { id: Date.now().toString(), skuId: skuIdToAdd, quantity: 1 }]);
         }
     };
     const handleItemChange = (itemId: string, field: 'skuId' | 'quantity', value: string | number) => {
-        setActionItems(actionItems.map(item => item.id === itemId ? { ...item, [field]: value } : item));
+        const updatedItems = actionItems.map(item => item.id === itemId ? { ...item, [field]: value } : item);
+
+        // If changing SKU, check for duplicates and merge
+        if (field === 'skuId') {
+            const changedItem = updatedItems.find(item => item.id === itemId);
+            const duplicateItem = updatedItems.find(item => item.id !== itemId && item.skuId === value);
+
+            if (changedItem && duplicateItem) {
+                // Merge quantities and remove the changed item
+                const mergedItems = updatedItems
+                    .filter(item => item.id !== itemId)
+                    .map(item =>
+                        item.id === duplicateItem.id
+                            ? { ...item, quantity: item.quantity + changedItem.quantity }
+                            : item
+                    );
+                setActionItems(mergedItems);
+                return;
+            }
+        }
+
+        setActionItems(updatedItems);
     };
     const handleRemoveItem = (itemId: string) => {
         setActionItems(actionItems.filter(item => item.id !== itemId));

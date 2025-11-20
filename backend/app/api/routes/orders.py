@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import List, Optional
 from app.models.schemas import Order, OrderCreate, OrderItem, OrderStatus
-from app.core.supabase import get_supabase_client
+from app.core.supabase import get_supabase_client, get_supabase_admin_client
 from supabase import Client
 from datetime import datetime
 import uuid
@@ -23,14 +23,14 @@ async def get_orders(
         query = supabase.table("orders").select("*")
 
         if distributor_id:
-            query = query.eq("distributorId", distributor_id)
+            query = query.eq("distributor_id", distributor_id)
 
         if portal_type == "store" and portal_id:
             # Get distributor IDs for this store
-            dist_response = supabase.table("distributors").select("id").eq("storeId", portal_id).execute()
+            dist_response = supabase.table("distributors").select("id").eq("store_id", portal_id).execute()
             dist_ids = [d["id"] for d in dist_response.data]
             if dist_ids:
-                query = query.in_("distributorId", dist_ids)
+                query = query.in_("distributor_id", dist_ids)
 
         response = query.order("date", desc=True).execute()
         return response.data
@@ -47,7 +47,7 @@ async def get_order_items(
     Get all items for a specific order
     """
     try:
-        response = supabase.table("order_items").select("*, skus(name, hsnCode, gstPercentage)").eq("orderId", order_id).execute()
+        response = supabase.table("order_items").select("*, skus(name, hsn_code, gst_percentage)").eq("order_id", order_id).execute()
         return response.data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -56,76 +56,92 @@ async def get_order_items(
 @router.post("", response_model=Order)
 async def create_order(
     order_data: OrderCreate,
-    supabase: Client = Depends(get_supabase_client)
+    supabase: Client = Depends(get_supabase_admin_client)
 ):
     """
     Create a new order with items
     """
     try:
-        # Calculate total amount
-        total_amount = 0.0
+        # Frontend sends the pre-calculated total amount including GST, schemes, and price tiers
+        total_amount = order_data.totalAmount
         order_items = []
 
-        for item in order_data.items:
-            # Get SKU price
-            sku_response = supabase.table("skus").select("price").eq("id", item.skuId).single().execute()
-            if not sku_response.data:
-                raise HTTPException(status_code=404, detail=f"SKU {item.skuId} not found")
+        # First, let's check what SKUs exist in the database
+        all_skus_test = supabase.table("skus").select("id, name").execute()
+        print(f"All SKUs in database: {all_skus_test.data}")
 
-            unit_price = sku_response.data["price"]
-            total_amount += unit_price * item.quantity
+        # Validate that all items exist and use provided unit prices (with price tiers) and freebie status
+        for item in order_data.items:
+            # Verify SKU exists
+            print(f"Looking for SKU with ID: {item.skuId}")
+            sku_response = supabase.table("skus").select("price").eq("id", item.skuId).execute()
+            print(f"SKU response: {sku_response.data}")
+            if not sku_response.data or len(sku_response.data) == 0:
+                print(f"SKU {item.skuId} NOT FOUND!")
+                raise HTTPException(status_code=404, detail=f"SKU {item.skuId} not found")
 
             order_items.append({
                 "skuId": item.skuId,
                 "quantity": item.quantity,
-                "unitPrice": unit_price,
-                "isFreebie": False,
+                "unitPrice": item.unitPrice if item.unitPrice is not None else sku_response.data[0]["price"],
+                "isFreebie": item.isFreebie if item.isFreebie is not None else False,
                 "returnedQuantity": 0
             })
 
         # Check wallet balance
-        distributor = supabase.table("distributors").select("walletBalance").eq("id", order_data.distributorId).single().execute()
-        if not distributor.data or distributor.data["walletBalance"] < total_amount:
+        distributor = supabase.table("distributors").select("wallet_balance").eq("id", order_data.distributorId).single().execute()
+        if not distributor.data or distributor.data["wallet_balance"] < total_amount:
             raise HTTPException(status_code=400, detail="Insufficient wallet balance")
 
         # Create order
+        order_id = f"ORD-{int(datetime.utcnow().timestamp() * 1000)}"
         order_obj = {
-            "distributorId": order_data.distributorId,
+            "id": order_id,
+            "distributor_id": order_data.distributorId,
             "date": datetime.utcnow().isoformat(),
-            "totalAmount": total_amount,
+            "total_amount": total_amount,
             "status": OrderStatus.PENDING.value,
-            "placedByExecId": order_data.username
+            "placed_by_exec_id": order_data.username
         }
 
         order_response = supabase.table("orders").insert(order_obj).execute()
         if not order_response.data:
             raise HTTPException(status_code=400, detail="Failed to create order")
 
-        order_id = order_response.data[0]["id"]
-
         # Insert order items
         for item in order_items:
-            item["orderId"] = order_id
-            supabase.table("order_items").insert(item).execute()
+            supabase.table("order_items").insert({
+                "order_id": order_id,
+                "sku_id": item["skuId"],
+                "quantity": item["quantity"],
+                "unit_price": item["unitPrice"],
+                "is_freebie": item["isFreebie"],
+                "returned_quantity": item["returnedQuantity"]
+            }).execute()
 
         # Deduct from wallet
-        new_balance = distributor.data["walletBalance"] - total_amount
-        supabase.table("distributors").update({"walletBalance": new_balance}).eq("id", order_data.distributorId).execute()
+        new_balance = distributor.data["wallet_balance"] - total_amount
+        supabase.table("distributors").update({"wallet_balance": new_balance}).eq("id", order_data.distributorId).execute()
 
         # Record wallet transaction
         supabase.table("wallet_transactions").insert({
-            "distributorId": order_data.distributorId,
+            "distributor_id": order_data.distributorId,
             "date": datetime.utcnow().isoformat(),
             "type": "ORDER_PAYMENT",
             "amount": -total_amount,
-            "balanceAfter": new_balance,
-            "orderId": order_id,
-            "initiatedBy": order_data.username
+            "balance_after": new_balance,
+            "order_id": order_id,
+            "initiated_by": order_data.username
         }).execute()
 
         return order_response.data[0]
 
+    except HTTPException:
+        raise
     except Exception as e:
+        import traceback
+        print(f"ERROR in create_order: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -173,25 +189,25 @@ async def delete_order(
 
         # Refund wallet if payment was made
         if order.data["status"] == OrderStatus.PENDING.value:
-            distributor = supabase.table("distributors").select("walletBalance").eq("id", order.data["distributorId"]).single().execute()
-            new_balance = distributor.data["walletBalance"] + order.data["totalAmount"]
+            distributor = supabase.table("distributors").select("wallet_balance").eq("id", order.data["distributor_id"]).single().execute()
+            new_balance = distributor.data["wallet_balance"] + order.data["total_amount"]
 
-            supabase.table("distributors").update({"walletBalance": new_balance}).eq("id", order.data["distributorId"]).execute()
+            supabase.table("distributors").update({"wallet_balance": new_balance}).eq("id", order.data["distributor_id"]).execute()
 
             # Record refund transaction
             supabase.table("wallet_transactions").insert({
-                "distributorId": order.data["distributorId"],
+                "distributor_id": order.data["distributor_id"],
                 "date": datetime.utcnow().isoformat(),
                 "type": "ORDER_REFUND",
-                "amount": order.data["totalAmount"],
-                "balanceAfter": new_balance,
-                "orderId": order_id,
-                "initiatedBy": username,
+                "amount": order.data["total_amount"],
+                "balance_after": new_balance,
+                "order_id": order_id,
+                "initiated_by": username,
                 "remarks": remarks
             }).execute()
 
         # Delete order items
-        supabase.table("order_items").delete().eq("orderId", order_id).execute()
+        supabase.table("order_items").delete().eq("order_id", order_id).execute()
 
         # Delete order
         supabase.table("orders").delete().eq("id", order_id).execute()

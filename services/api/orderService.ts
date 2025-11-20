@@ -181,24 +181,17 @@ export const createOrderService = (supabase: SupabaseClient) => ({
         if (!distributorId) throw new Error("Distributor ID is required.");
         if (!items || items.length === 0) throw new Error("Order must contain at least one item.");
 
+        // Calculate total amount on frontend for validation and display
         const { data: distributorData, error: distError } = await supabase.from('distributors').select('*').eq('id', distributorId).single();
         if (distError) throw new Error('Distributor not found');
         const distributor: Distributor = { ...distributorData, creditLimit: distributorData.credit_limit, walletBalance: distributorData.wallet_balance, storeId: distributorData.store_id, priceTierId: distributorData.price_tier_id, hasSpecialSchemes: distributorData.has_special_schemes };
 
-        if (portal.type === 'store' && distributor.storeId !== portal.id) {
-            throw new Error("Permission denied. You can only place orders for distributors assigned to your store.");
-        }
-
-        const locationId = distributor.storeId || 'plant';
         const orderDate = new Date().toISOString();
 
-        let stockQuery = supabase.from('stock_items').select('*').eq('location_id', locationId);
-
-        const [rawSkus, rawAllTierItems, rawSchemes, stockItems] = await Promise.all([
+        const [rawSkus, rawAllTierItems, rawSchemes] = await Promise.all([
             supabase.from('skus').select('*').then(res => res.data || []),
             supabase.from('price_tier_items').select('*').then(res => res.data || []),
             supabase.from('schemes').select('*').then(res => res.data || []),
-            stockQuery.then(res => res.data || []),
         ]);
 
         const skus: SKU[] = (rawSkus || []).map((s: any) => ({ id: s.id, name: s.name, price: s.price, hsnCode: s.hsn_code, gstPercentage: s.gst_percentage }));
@@ -211,53 +204,34 @@ export const createOrderService = (supabase: SupabaseClient) => ({
         }));
 
         const { fullItemsList, totalAmount } = calculateOrderMetrics(distributor, items, skus, allTierItems, allSchemes, orderDate);
-        
-        if (totalAmount > distributor.walletBalance + distributor.creditLimit) throw new Error('Insufficient funds.');
 
-        const requiredStock = new Map<string, number>();
-        fullItemsList.forEach(item => requiredStock.set(item.skuId, (requiredStock.get(item.skuId) || 0) + item.quantity));
-        const stockMap = new Map<string, { quantity: number; reserved: number; }>((stockItems || []).map((s: any) => [s.sku_id, { quantity: s.quantity, reserved: s.reserved }]));
-
-        for (const [skuId, requiredQty] of requiredStock.entries()) {
-            const stockInfo = stockMap.get(skuId) || { quantity: 0, reserved: 0 };
-            if (requiredQty > (stockInfo.quantity - stockInfo.reserved)) {
-                throw new Error(`Insufficient stock for ${skus.find(s => s.id === skuId)?.name}.`);
-            }
-        }
-        
-        const orderId = `ORD-${Date.now()}`;
-        const { data: newOrder, error: orderError } = await supabase.from('orders').insert({
-            id: orderId,
-            distributor_id: distributorId, 
-            total_amount: totalAmount, 
-            date: orderDate, 
-            status: OrderStatus.PENDING, 
-            placed_by_exec_id: username
-        }).select().single();
-        if(orderError) throw orderError;
-
-        const { error: itemsError } = await supabase.from('order_items').insert(fullItemsList.map(item => ({
-            order_id: newOrder.id, sku_id: item.skuId, quantity: item.quantity, unit_price: item.unitPrice, is_freebie: item.isFreebie,
-        })));
-        if(itemsError) { await supabase.from('orders').delete().eq('id', newOrder.id); throw itemsError; }
-
-        const stockUpdates = [];
-        const existingStockMap = new Map((stockItems || []).map(item => [item.sku_id, item.reserved]));
-        for (const [skuId, requiredQty] of requiredStock.entries()) {
-            const currentReserved = existingStockMap.get(skuId) || 0;
-            stockUpdates.push({ location_id: locationId, sku_id: skuId, reserved: Number(currentReserved) + requiredQty });
-        }
-        const { error: upsertError } = await supabase.from('stock_items').upsert(stockUpdates, { onConflict: 'location_id,sku_id' });
-        if(upsertError) { /* Rollback... */ await supabase.from('order_items').delete().eq('order_id', newOrder.id); await supabase.from('orders').delete().eq('id', newOrder.id); throw upsertError; }
-
-        const newBalance = distributor.walletBalance - totalAmount;
-        await supabase.from('distributors').update({ wallet_balance: newBalance }).eq('id', distributorId);
-        await supabase.from('wallet_transactions').insert({
-            distributor_id: distributorId, date: orderDate, type: TransactionType.ORDER_PAYMENT, amount: -totalAmount,
-            balance_after: newBalance, order_id: newOrder.id, initiated_by: username,
+        // Call backend API to create order with full items list (including freebies)
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+        const response = await fetch(`${apiUrl}/orders`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                distributorId,
+                items: fullItemsList.map(item => ({
+                    skuId: item.skuId,
+                    quantity: item.quantity,
+                    unitPrice: item.unitPrice,
+                    isFreebie: item.isFreebie
+                })),
+                username,
+                totalAmount
+            }),
         });
-        
-        return { ...newOrder, distributorId: newOrder.distributor_id, totalAmount: newOrder.total_amount, placedByExecId: newOrder.placed_by_exec_id };
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Failed to create order');
+        }
+
+        const newOrder = await response.json();
+        return { ...newOrder, distributorId: newOrder.distributorId || newOrder.distributor_id, totalAmount: newOrder.totalAmount || newOrder.total_amount, placedByExecId: newOrder.placedByExecId || newOrder.placed_by_exec_id };
     },
 
     async updateOrderItems(orderId: string, items: { skuId: string; quantity: number }[], username: string): Promise<void> {
