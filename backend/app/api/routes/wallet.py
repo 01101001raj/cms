@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import List, Optional
 from app.models.schemas import WalletTransaction, WalletRecharge
-from app.core.supabase import get_supabase_client
+from app.core.supabase import get_supabase_client, get_supabase_admin_client
 from supabase import Client
 from datetime import datetime
 
@@ -42,7 +42,7 @@ async def get_wallet_transactions(
 @router.post("/recharge")
 async def recharge_wallet(
     recharge: WalletRecharge,
-    supabase: Client = Depends(get_supabase_client)
+    supabase: Client = Depends(get_supabase_admin_client)
 ):
     """
     Recharge distributor or store wallet
@@ -143,7 +143,7 @@ async def recharge_wallet(
 async def recalculate_wallet_balances(
     account_type: str,
     account_id: str,
-    supabase: Client = Depends(get_supabase_client)
+    supabase: Client = Depends(get_supabase_admin_client)
 ):
     """
     Utility endpoint to recalculate all wallet balances for a distributor or store
