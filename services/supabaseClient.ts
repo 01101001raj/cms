@@ -10,12 +10,14 @@ const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
 export const supabase = (supabaseUrl && supabaseAnonKey)
   ? createClient<any>(supabaseUrl, supabaseAnonKey, {
       auth: {
-        // Explicitly enable session persistence to ensure it works across page reloads,
-        // especially in sandboxed or iframe environments.
+        // Use sessionStorage instead of localStorage so session expires when tab closes
+        storage: window.sessionStorage,
+        storageKey: 'supabase.auth.token',
+        // Enable session persistence within the tab session
         persistSession: true,
-        // Automatically refresh the session token.
+        // Automatically refresh the session token
         autoRefreshToken: true,
-        // Detect session from the URL, which is useful for OAuth and password recovery flows.
+        // Detect session from the URL, which is useful for OAuth and password recovery flows
         detectSessionInUrl: true,
       },
     })

@@ -4,6 +4,7 @@ import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import BackendStatusIndicator from './components/common/BackendStatusIndicator';
 import { useAuth } from './hooks/useAuth';
+import { useSessionManager } from './hooks/useSessionManager';
 import { Loader2 } from 'lucide-react';
 
 // Statically import all page components
@@ -111,6 +112,9 @@ const AppRoutes = () => (
 );
 
 const App: React.FC = () => {
+  // Initialize session manager for automatic logout on inactivity
+  useSessionManager();
+
   return (
     <div className="flex flex-col min-h-screen bg-background text-content font-sans">
       <BackendStatusIndicator />
