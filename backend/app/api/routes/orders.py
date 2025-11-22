@@ -69,7 +69,7 @@ async def create_order(
         # Validate that all items exist and calculate total
         for item in order_data.items:
             # Verify SKU exists and get price + GST
-            sku_response = supabase.table("skus").select("id, name, price, gst_percent").eq("id", item.skuId).execute()
+            sku_response = supabase.table("skus").select("id, name, price, gst_percentage").eq("id", item.skuId).execute()
             if not sku_response.data or len(sku_response.data) == 0:
                 raise HTTPException(status_code=404, detail=f"SKU {item.skuId} not found")
 
@@ -82,7 +82,7 @@ async def create_order(
             # Calculate item total with GST (freebies don't add to total)
             if not is_freebie:
                 # Calculate price with GST
-                gst_multiplier = 1 + (sku["gst_percent"] / 100)
+                gst_multiplier = 1 + (sku["gst_percentage"] / 100)
                 item_total = round(unit_price * item.quantity * gst_multiplier, 2)
                 total_amount += item_total
 
