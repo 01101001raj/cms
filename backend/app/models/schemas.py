@@ -220,7 +220,7 @@ class OrderCreate(BaseModel):
     distributorId: str
     items: List[OrderItemCreate]
     username: str
-    totalAmount: float  # Pre-calculated by frontend including GST, schemes, and price tiers
+    # totalAmount removed - backend will calculate it from items
 
 
 class WalletTransaction(BaseModel):

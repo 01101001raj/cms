@@ -60,31 +60,37 @@ async def create_order(
 ):
     """
     Create a new order with items
+    Backend calculates total amount from items to avoid floating-point errors
     """
     try:
-        # Frontend sends the pre-calculated total amount including GST, schemes, and price tiers
-        total_amount = order_data.totalAmount
         order_items = []
+        total_amount = 0.0
 
-        # First, let's check what SKUs exist in the database
-        all_skus_test = supabase.table("skus").select("id, name").execute()
-        print(f"All SKUs in database: {all_skus_test.data}")
-
-        # Validate that all items exist and use provided unit prices (with price tiers) and freebie status
+        # Validate that all items exist and calculate total
         for item in order_data.items:
-            # Verify SKU exists
-            print(f"Looking for SKU with ID: {item.skuId}")
-            sku_response = supabase.table("skus").select("price").eq("id", item.skuId).execute()
-            print(f"SKU response: {sku_response.data}")
+            # Verify SKU exists and get price + GST
+            sku_response = supabase.table("skus").select("id, name, price, gst_percent").eq("id", item.skuId).execute()
             if not sku_response.data or len(sku_response.data) == 0:
-                print(f"SKU {item.skuId} NOT FOUND!")
                 raise HTTPException(status_code=404, detail=f"SKU {item.skuId} not found")
+
+            sku = sku_response.data[0]
+
+            # Use provided unit price (from price tiers) or default SKU price
+            unit_price = item.unitPrice if item.unitPrice is not None else sku["price"]
+            is_freebie = item.isFreebie if item.isFreebie is not None else False
+
+            # Calculate item total with GST (freebies don't add to total)
+            if not is_freebie:
+                # Calculate price with GST
+                gst_multiplier = 1 + (sku["gst_percent"] / 100)
+                item_total = round(unit_price * item.quantity * gst_multiplier, 2)
+                total_amount += item_total
 
             order_items.append({
                 "skuId": item.skuId,
                 "quantity": item.quantity,
-                "unitPrice": item.unitPrice if item.unitPrice is not None else sku_response.data[0]["price"],
-                "isFreebie": item.isFreebie if item.isFreebie is not None else False,
+                "unitPrice": unit_price,
+                "isFreebie": is_freebie,
                 "returnedQuantity": 0
             })
 

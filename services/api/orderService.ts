@@ -206,6 +206,7 @@ export const createOrderService = (supabase: SupabaseClient) => ({
         const { fullItemsList, totalAmount } = calculateOrderMetrics(distributor, items, skus, allTierItems, allSchemes, orderDate);
 
         // Call backend API to create order with full items list (including freebies)
+        // Backend will calculate totalAmount to avoid floating-point errors
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
         const response = await fetch(`${apiUrl}/orders`, {
             method: 'POST',
@@ -220,8 +221,7 @@ export const createOrderService = (supabase: SupabaseClient) => ({
                     unitPrice: item.unitPrice,
                     isFreebie: item.isFreebie
                 })),
-                username,
-                totalAmount
+                username
             }),
         });
 
