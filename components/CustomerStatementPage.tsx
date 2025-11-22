@@ -45,11 +45,19 @@ interface CustomerStatement {
 const CustomerStatementPage: React.FC = () => {
     const navigate = useNavigate();
     const [distributors, setDistributors] = useState<Distributor[]>([]);
+    const [searchTerm, setSearchTerm] = useState<string>('');
     const [selectedDistributor, setSelectedDistributor] = useState<string>('');
     const [startDate, setStartDate] = useState<string>('');
     const [endDate, setEndDate] = useState<string>('');
     const [statement, setStatement] = useState<CustomerStatement | null>(null);
     const [loading, setLoading] = useState(false);
+
+    // Filter distributors based on search term
+    const filteredDistributors = distributors.filter(dist =>
+        dist.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        dist.area.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        dist.phone.includes(searchTerm)
+    );
 
     useEffect(() => {
         // Load distributors
@@ -114,42 +122,54 @@ const CustomerStatementPage: React.FC = () => {
 
             {/* Filters */}
             <Card className="print:hidden">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <Select
-                        label="Select Distributor"
-                        value={selectedDistributor}
-                        onChange={(e) => setSelectedDistributor(e.target.value)}
-                    >
-                        <option value="">-- Select Distributor --</option>
-                        {distributors.map(dist => (
-                            <option key={dist.id} value={dist.id}>
-                                {dist.name} - {dist.area}
-                            </option>
-                        ))}
-                    </Select>
-
+                <div className="space-y-4">
+                    {/* Search Bar */}
                     <Input
-                        label="Start Date"
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
+                        label="Search Distributor"
+                        type="text"
+                        placeholder="Search by name, area, or phone..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
                     />
 
-                    <Input
-                        label="End Date"
-                        type="date"
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                    />
-
-                    <div className="flex items-end">
-                        <Button
-                            onClick={handleGenerateStatement}
-                            disabled={!selectedDistributor || !startDate || !endDate || loading}
-                            className="w-full"
+                    {/* Date Range and Actions */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <Select
+                            label="Select Distributor"
+                            value={selectedDistributor}
+                            onChange={(e) => setSelectedDistributor(e.target.value)}
                         >
-                            {loading ? 'Generating...' : 'Generate Statement'}
-                        </Button>
+                            <option value="">-- Select Distributor --</option>
+                            {filteredDistributors.map(dist => (
+                                <option key={dist.id} value={dist.id}>
+                                    {dist.name} - {dist.area}
+                                </option>
+                            ))}
+                        </Select>
+
+                        <Input
+                            label="Start Date"
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                        />
+
+                        <Input
+                            label="End Date"
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                        />
+
+                        <div className="flex items-end">
+                            <Button
+                                onClick={handleGenerateStatement}
+                                disabled={!selectedDistributor || !startDate || !endDate || loading}
+                                className="w-full"
+                            >
+                                {loading ? 'Generating...' : 'Generate Statement'}
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </Card>
