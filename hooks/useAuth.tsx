@@ -83,6 +83,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     }, []);
     
+    // Fetch user profile and permissions from database
+    const fetchUserProfile = useCallback(async (userId: string) => {
+        const { data: profile, error } = await supabase
+            .from('users')
+            .select('*, stores ( name )')
+            .eq('id', userId)
+            .single();
+
+        if (error) throw error;
+
+        // Add a hard check for misconfigured store-level users
+        if ([UserRole.STORE_ADMIN, UserRole.ASM, UserRole.EXECUTIVE, UserRole.USER].includes(profile.role) && !profile.store_id) {
+            throw new Error(`User with role '${profile.role}' is not associated with a store. Please contact an administrator.`);
+        }
+
+        // For Plant Admin, ALWAYS generate fresh permissions from menuItems
+        // For other roles, use database permissions
+        const userProfile: User = {
+            id: profile.id,
+            username: profile.username,
+            role: profile.role,
+            storeId: profile.store_id,
+            permissions: profile.role === UserRole.PLANT_ADMIN
+                ? menuItems.map(item => item.path)
+                : profile.permissions,
+            asmId: profile.asm_id
+        };
+
+        let resolvedPortal: PortalState | null = null;
+        if (userProfile.role === UserRole.PLANT_ADMIN) {
+            // For Plant Admins, respect the portal choice they previously saved.
+            resolvedPortal = getInitialPortal();
+        } else if (userProfile.storeId) {
+            // For store-based users, lock them to their assigned store portal.
+            const storeName = profile.stores?.name;
+            if (storeName) {
+                resolvedPortal = { type: 'store', id: userProfile.storeId, name: storeName };
+            } else {
+                // Fallback fetch if the initial join failed for some reason
+                const { data: store } = await supabase.from('stores').select('name').eq('id', userProfile.storeId).single();
+                resolvedPortal = { type: 'store', id: userProfile.storeId, name: store?.name || `Store ${userProfile.storeId}` };
+            }
+        }
+
+        return { userProfile, resolvedPortal };
+    }, []);
+
     useEffect(() => {
         if (!supabase) {
             setIsLoading(false);
@@ -97,61 +144,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 return;
             }
 
-            // Fast Path: If we already have a user in state that matches the session,
-            // we can consider the user authenticated and stop the main loader.
-            if (currentUser && currentUser.id === session.user.id) {
-                setIsLoading(false);
-                return; // The cached user is valid for this session.
-            }
-
-            // Slow Path: No user in state, or a different user.
-            // This happens on initial login or if storage was cleared. We must fetch from the network.
+            // REMOVED Fast Path - Always fetch fresh permissions from database
+            // This ensures Plant Admin always gets the latest menu items
             try {
-                const { data: profile, error } = await supabase
-                    .from('users')
-                    .select('*, stores ( name )')
-                    .eq('id', session.user.id)
-                    .single();
-
-                if (error) throw error;
-                
-                // Add a hard check for misconfigured store-level users
-                if ([UserRole.STORE_ADMIN, UserRole.ASM, UserRole.EXECUTIVE, UserRole.USER].includes(profile.role) && !profile.store_id) {
-                    throw new Error(`User with role '${profile.role}' is not associated with a store. Please contact an administrator.`);
-                }
-
-                const userProfile: User = {
-                    id: profile.id,
-                    username: profile.username,
-                    role: profile.role,
-                    storeId: profile.store_id,
-                    permissions: profile.role === UserRole.PLANT_ADMIN 
-                        ? menuItems.map(item => item.path) 
-                        : profile.permissions,
-                    asmId: profile.asm_id
-                };
-                
-                let resolvedPortal: PortalState | null = null;
-                if (userProfile.role === UserRole.PLANT_ADMIN) {
-                    // For Plant Admins, respect the portal choice they previously saved.
-                    resolvedPortal = getInitialPortal();
-                } else if (userProfile.storeId) {
-                    // For store-based users, lock them to their assigned store portal.
-                    // This is now more robust.
-                    const storeName = profile.stores?.name;
-                    if (storeName) {
-                        resolvedPortal = { type: 'store', id: userProfile.storeId, name: storeName };
-                    } else {
-                        // Fallback fetch if the initial join failed for some reason
-                        const { data: store } = await supabase.from('stores').select('name').eq('id', userProfile.storeId).single();
-                        resolvedPortal = { type: 'store', id: userProfile.storeId, name: store?.name || `Store ${userProfile.storeId}` };
-                    }
-                }
-                // By removing the 'else' block that defaulted to a 'plant' portal, we ensure
-                // store-based users without a storeId cannot proceed, which is a safer state.
-
+                const { userProfile, resolvedPortal } = await fetchUserProfile(session.user.id);
                 persistUserAndPortal(userProfile, resolvedPortal);
-
             } catch (error) {
                 console.error("Critical: Failed to fetch user profile for an active session. Logging out.", error);
                 // If we have a session but absolutely cannot get a profile, something is wrong.
@@ -167,7 +164,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return () => {
             authListener.subscription.unsubscribe();
         };
-    }, [currentUser, persistUserAndPortal, clearSession]);
+    }, [fetchUserProfile, persistUserAndPortal, clearSession]);
 
 
     const login = useCallback(async (email: string, pass: string) => {

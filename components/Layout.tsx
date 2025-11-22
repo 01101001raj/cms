@@ -7,6 +7,7 @@ import {
   Settings, LogOut, Menu, X, Home, Building2
 } from 'lucide-react';
 import NotificationDropdown from './common/NotificationDropdown';
+import RefreshPermissions from './RefreshPermissions';
 import { menuItems } from '../constants';
 
 const Sidebar: React.FC<{ isOpen: boolean; closeSidebar: () => void; }> = ({ isOpen, closeSidebar }) => {
@@ -125,6 +126,7 @@ const Layout: React.FC = () => {
                     <Outlet />
                 </main>
             </div>
+            <RefreshPermissions />
         </div>
     );
 };

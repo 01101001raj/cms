@@ -1,17 +1,22 @@
 import React from 'react';
 import Button from './common/Button';
 import { RefreshCw } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
 
 /**
- * Temporary component to refresh user permissions
- * This clears the cached user data and forces a reload from the database
+ * Component to refresh user permissions
+ * This logs out and back in to fetch fresh permissions
  */
 const RefreshPermissions: React.FC = () => {
-    const handleRefresh = () => {
-        // Clear the cached user profile
-        sessionStorage.removeItem('distributorAppUserProfile');
-        // Reload the page to fetch fresh permissions
-        window.location.reload();
+    const { logout } = useAuth();
+
+    const handleRefresh = async () => {
+        // Clear all cached data
+        sessionStorage.clear();
+        localStorage.removeItem('distributorAppPortal');
+
+        // Force a complete reload to reset the app state
+        window.location.href = '/login';
     };
 
     return (
@@ -21,6 +26,7 @@ const RefreshPermissions: React.FC = () => {
                 variant="secondary"
                 icon={<RefreshCw size={16} />}
                 className="shadow-lg"
+                title="Clear cache and reload permissions"
             >
                 Refresh Permissions
             </Button>

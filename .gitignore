@@ -56,3 +56,8 @@ coverage
 # Misc
 .temp
 .tmp
+.env*.local
+nul
+backend/nul
+test-permissions.html
+.claude/
