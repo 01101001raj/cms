@@ -3,7 +3,7 @@ import { UserRole } from './types';
 import {
   LayoutDashboard, ShoppingCart, History, Wallet, TrendingUp, PackagePlus, PackageCheck,
   Users, Settings, LogOut, Menu, X, UserCog, Bot, Award, Layers, Sparkles, Home, Building2,
-  Package, Send
+  Package, Send, FileText
 } from 'lucide-react';
 
 export const PLANT_LOCATION_ID = '00000000-0000-0000-0000-000000000000';
@@ -17,6 +17,7 @@ export const menuItems = [
     { name: 'Recharge Wallet', path: '/recharge-wallet', icon: Wallet, roles: [UserRole.PLANT_ADMIN, UserRole.ASM, UserRole.EXECUTIVE, UserRole.STORE_ADMIN, UserRole.USER], group: 'main' },
     { name: 'Confirm Returns', path: '/confirm-returns', icon: PackageCheck, roles: [UserRole.PLANT_ADMIN, UserRole.ASM, UserRole.STORE_ADMIN], group: 'main' },
     { name: 'Sales Reports', path: '/sales', icon: TrendingUp, roles: [UserRole.PLANT_ADMIN, UserRole.ASM, UserRole.EXECUTIVE, UserRole.STORE_ADMIN, UserRole.USER], group: 'main' },
+    { name: 'Customer Statement', path: '/customer-statement', icon: FileText, roles: [UserRole.PLANT_ADMIN, UserRole.ASM, UserRole.EXECUTIVE, UserRole.STORE_ADMIN], group: 'main' },
     { name: 'CEO Insights', path: '/ceo-insights', icon: Bot, roles: [UserRole.PLANT_ADMIN], group: 'main' },
     { name: 'Distributor Scorecard', path: '/distributor-scorecard', icon: Award, roles: [UserRole.PLANT_ADMIN, UserRole.EXECUTIVE], group: 'main' },
     // Management Links
