@@ -47,6 +47,29 @@ async def health_check():
     return {"status": "healthy"}
 
 
+@app.get("/api/v1/keepalive")
+async def keepalive():
+    """
+    Keepalive endpoint for cron jobs to prevent cold starts.
+    Also warms up database connection.
+    """
+    from app.core.supabase import get_supabase_admin_client
+    try:
+        # Warm up the database connection
+        supabase = get_supabase_admin_client()
+        # Simple query to keep connection alive
+        supabase.table("stores").select("id").limit(1).execute()
+        return {
+            "status": "alive",
+            "message": "Backend is warm and database connection active"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
 # For local development
 if __name__ == "__main__":
     import uvicorn

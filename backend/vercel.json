@@ -14,5 +14,11 @@
       "src": "/(.*)",
       "dest": "app/main.py"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/v1/keepalive",
+      "schedule": "*/5 * * * *"
+    }
   ]
 }
