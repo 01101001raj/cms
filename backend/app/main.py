@@ -3,11 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.routes import auth, distributors, orders, stock, wallet, products, stores
 
-# Create FastAPI app
+# Create FastAPI app with optimizations
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version="1.0.0",
-    description="Backend API for Distributor Management System"
+    description="Backend API for Distributor Management System",
+    docs_url="/docs",
+    redoc_url=None  # Disable ReDoc to reduce bundle size
 )
 
 # Configure CORS
