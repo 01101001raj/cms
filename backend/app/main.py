@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api.routes import auth, distributors, orders, stock, wallet, products, stores, reports
+from app.api.routes import auth, distributors, orders, stock, wallet, products, stores, reports, migrations
 
 # Create FastAPI app with optimizations
 app = FastAPI(
@@ -30,6 +30,7 @@ app.include_router(wallet.router, prefix=settings.API_V1_PREFIX)
 app.include_router(products.router, prefix=settings.API_V1_PREFIX)
 app.include_router(stores.router, prefix=settings.API_V1_PREFIX)
 app.include_router(reports.router, prefix=settings.API_V1_PREFIX)
+app.include_router(migrations.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/")
