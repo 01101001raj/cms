@@ -35,6 +35,7 @@ import SettingsPage from './components/SettingsPage';
 import SchemeHistoryPage from './components/SchemeHistoryPage';
 import SpecialAssignmentsPage from './components/SpecialAssignmentsPage';
 import EWayBillPage from './components/EWayBillPage';
+import CustomerStatementPage from './components/CustomerStatementPage';
 
 const LoadingFallback = () => (
     <div className="flex-1 flex items-center justify-center min-h-screen">
@@ -87,6 +88,7 @@ const AppRoutes = () => (
           <Route path="sales" element={<SalesPage />} />
           <Route path="ceo-insights" element={<CEOInsightsPage />} />
           <Route path="distributor-scorecard" element={<DistributorScorecardPage />} />
+          <Route path="customer-statement" element={<CustomerStatementPage />} />
           <Route path="stock/central" element={<CentralStockPage />} />
           <Route path="stock/store/:storeId?" element={<StoreStockPage />} />
           <Route path="products/manage" element={<ManageSKUs />} />
