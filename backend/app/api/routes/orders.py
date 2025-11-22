@@ -151,6 +151,107 @@ async def create_order(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.put("/{order_id}/items")
+async def update_order_items(
+    order_id: str,
+    order_data: OrderCreate,
+    supabase: Client = Depends(get_supabase_admin_client)
+):
+    """
+    Update order items and recalculate total
+    Backend calculates total amount from items to avoid floating-point errors
+    """
+    try:
+        # Get original order
+        order = supabase.table("orders").select("*").eq("id", order_id).single().execute()
+        if not order.data:
+            raise HTTPException(status_code=404, detail="Order not found")
+
+        original_total = order.data["total_amount"]
+
+        # Calculate new total from items
+        order_items = []
+        total_amount = 0.0
+
+        for item in order_data.items:
+            # Verify SKU exists and get price + GST
+            sku_response = supabase.table("skus").select("id, name, price, gst_percentage").eq("id", item.skuId).execute()
+            if not sku_response.data or len(sku_response.data) == 0:
+                raise HTTPException(status_code=404, detail=f"SKU {item.skuId} not found")
+
+            sku = sku_response.data[0]
+
+            # Use provided unit price (from price tiers) or default SKU price
+            unit_price = item.unitPrice if item.unitPrice is not None else sku["price"]
+            is_freebie = item.isFreebie if item.isFreebie is not None else False
+
+            # Calculate item total with GST (freebies don't add to total)
+            if not is_freebie:
+                gst_multiplier = 1 + (sku["gst_percentage"] / 100)
+                item_total = round(unit_price * item.quantity * gst_multiplier, 2)
+                total_amount += item_total
+
+            order_items.append({
+                "skuId": item.skuId,
+                "quantity": item.quantity,
+                "unitPrice": unit_price,
+                "isFreebie": is_freebie,
+                "returnedQuantity": 0
+            })
+
+        # Calculate amount difference
+        amount_delta = total_amount - original_total
+
+        # Check wallet balance for the difference
+        distributor = supabase.table("distributors").select("wallet_balance").eq("id", order.data["distributor_id"]).single().execute()
+        new_balance = distributor.data["wallet_balance"] - amount_delta
+
+        if new_balance < 0:
+            raise HTTPException(status_code=400, detail="Insufficient wallet balance for this change")
+
+        # Update order items
+        supabase.table("order_items").delete().eq("order_id", order_id).execute()
+
+        for item in order_items:
+            supabase.table("order_items").insert({
+                "order_id": order_id,
+                "sku_id": item["skuId"],
+                "quantity": item["quantity"],
+                "unit_price": item["unitPrice"],
+                "is_freebie": item["isFreebie"],
+                "returned_quantity": item["returnedQuantity"]
+            }).execute()
+
+        # Update order total
+        supabase.table("orders").update({"total_amount": total_amount}).eq("id", order_id).execute()
+
+        # Update wallet balance if there's a difference
+        if amount_delta != 0:
+            supabase.table("distributors").update({"wallet_balance": new_balance}).eq("id", order.data["distributor_id"]).execute()
+
+            # Record wallet transaction for the adjustment
+            supabase.table("wallet_transactions").insert({
+                "distributor_id": order.data["distributor_id"],
+                "date": datetime.utcnow().isoformat(),
+                "type": "ORDER_PAYMENT",
+                "amount": -amount_delta,
+                "balance_after": new_balance,
+                "order_id": order_id,
+                "initiated_by": order_data.username,
+                "remarks": "Order Edit Adjustment"
+            }).execute()
+
+        return {"message": "Order items updated successfully", "total_amount": total_amount}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"ERROR in update_order_items: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.put("/{order_id}/status")
 async def update_order_status(
     order_id: str,

@@ -235,9 +235,10 @@ export const createOrderService = (supabase: SupabaseClient) => ({
     },
 
     async updateOrderItems(orderId: string, items: { skuId: string; quantity: number }[], username: string): Promise<void> {
+        // Get order and distributor data for calculating items with schemes
         const { data: orderData, error: orderError } = await supabase.from('orders').select('*, distributors(*)').eq('id', orderId).single();
         if (orderError) throw orderError;
-        
+
         const distData = Array.isArray(orderData.distributors) ? orderData.distributors[0] : orderData.distributors;
         if (!distData) throw new Error('Distributor not found for this order.');
 
@@ -248,13 +249,12 @@ export const createOrderService = (supabase: SupabaseClient) => ({
             walletBalance: distData.wallet_balance, dateAdded: distData.date_added, priceTierId: distData.price_tier_id,
             storeId: distData.store_id
         };
-        const locationId = distributor.storeId || 'plant';
-    
-        const [originalItems, rawSkus, rawAllTierItems, rawSchemes] = await Promise.all([
-            supabase.from('order_items').select('*').eq('order_id', orderId).then(res => res.data!),
-            supabase.from('skus').select('*').then(res => res.data!),
-            supabase.from('price_tier_items').select('*').then(res => res.data!),
-            supabase.from('schemes').select('*').then(res => res.data!),
+
+        // Get SKUs, tier items, and schemes to calculate items with freebies
+        const [rawSkus, rawAllTierItems, rawSchemes] = await Promise.all([
+            supabase.from('skus').select('*').then(res => res.data || []),
+            supabase.from('price_tier_items').select('*').then(res => res.data || []),
+            supabase.from('schemes').select('*').then(res => res.data || []),
         ]);
 
         const skus: SKU[] = (rawSkus || []).map((s: any) => ({ id: s.id, name: s.name, price: s.price, hsnCode: s.hsn_code, gstPercentage: s.gst_percentage }));
@@ -265,64 +265,34 @@ export const createOrderService = (supabase: SupabaseClient) => ({
             isGlobal: s.is_global, distributorId: s.distributor_id, storeId: s.store_id,
             stoppedBy: s.stopped_by, stoppedDate: s.stopped_date,
         }));
-    
-        const originalStockMap = new Map<string, number>();
-        originalItems.forEach(item => originalStockMap.set(item.sku_id, (originalStockMap.get(item.sku_id) || 0) + item.quantity));
 
-        const { fullItemsList, totalAmount: newTotalAmount } = calculateOrderMetrics(distributor, items, skus, allTierItems, allSchemes, orderData.date);
+        // Calculate full items list with freebies
+        const { fullItemsList } = calculateOrderMetrics(distributor, items, skus, allTierItems, allSchemes, orderData.date);
 
-        const newRequiredStock = new Map<string, number>();
-        fullItemsList.forEach(item => newRequiredStock.set(item.skuId, (newRequiredStock.get(item.skuId) || 0) + item.quantity));
+        // Call backend API to update order items
+        // Backend will recalculate total and handle wallet adjustments
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+        const response = await fetch(`${apiUrl}/orders/${orderId}/items`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                distributorId: distributor.id,
+                items: fullItemsList.map(item => ({
+                    skuId: item.skuId,
+                    quantity: item.quantity,
+                    unitPrice: item.unitPrice,
+                    isFreebie: item.isFreebie
+                })),
+                username
+            }),
+        });
 
-        const allAffectedSkuIds = Array.from(new Set([...originalStockMap.keys(), ...newRequiredStock.keys()]));
-        
-        let currentStockQuery = supabase.from('stock_items').select('sku_id, quantity, reserved').in('sku_id', allAffectedSkuIds).eq('location_id', locationId);
-        
-        const { data: currentStockItems, error: stockFetchError } = await currentStockQuery;
-
-        if (stockFetchError) throw stockFetchError;
-        const currentStockMap = new Map<string, { quantity: number; reserved: number; }>((currentStockItems || []).map(s => [s.sku_id, { quantity: s.quantity, reserved: s.reserved }]));
-
-        const stockUpdates = [];
-        for (const skuId of allAffectedSkuIds) {
-            const originalQty = originalStockMap.get(skuId) || 0;
-            const newQty = newRequiredStock.get(skuId) || 0;
-            const delta = newQty - originalQty;
-
-            const stockInfo = currentStockMap.get(skuId) || { quantity: 0, reserved: 0 };
-            // FIX: The value from Supabase might not be a number. Cast it explicitly to prevent type errors in arithmetic operations.
-            const availableNow = Number(stockInfo.quantity) - Number(stockInfo.reserved);
-            if (newQty > availableNow + originalQty) {
-                throw new Error(`Insufficient stock for ${skus.find(s => s.id === skuId)?.name}. Required: ${newQty}, Available: ${availableNow + originalQty}.`);
-            }
-            // FIX: The value from Supabase might not be a number. Cast it explicitly to prevent type errors in arithmetic operations.
-            stockUpdates.push({ location_id: locationId, sku_id: skuId, reserved: Number(stockInfo.reserved) + delta });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Failed to update order items');
         }
-        
-        const amountDelta = newTotalAmount - orderData.total_amount;
-        const finalWalletBalance = distributor.walletBalance - amountDelta;
-        if (finalWalletBalance < -distributor.creditLimit) {
-            throw new Error("Insufficient funds for this order change.");
-        }
-        
-        await supabase.from('order_items').delete().eq('order_id', orderId);
-        await supabase.from('order_items').insert(fullItemsList.map(item => ({ order_id: orderId, sku_id: item.skuId, quantity: item.quantity, unit_price: item.unitPrice, is_freebie: item.isFreebie })));
-    
-        if (stockUpdates.length > 0) {
-            const { error: stockUpdateError } = await supabase.from('stock_items').upsert(stockUpdates, { onConflict: 'location_id,sku_id' });
-            if (stockUpdateError) throw stockUpdateError;
-        }
-
-        await supabase.from('distributors').update({ wallet_balance: finalWalletBalance }).eq('id', distributor.id);
-        
-        if (amountDelta !== 0) {
-            await supabase.from('wallet_transactions').insert({
-                distributor_id: distributor.id, type: TransactionType.ORDER_PAYMENT, amount: -amountDelta,
-                balance_after: finalWalletBalance, order_id: orderId, remarks: 'Order Edit Adjustment', initiated_by: username,
-            });
-        }
-        
-        await supabase.from('orders').update({ total_amount: newTotalAmount }).eq('id', orderId);
     },
 
     async updateOrderStatus(orderId: string, status: OrderStatus, username: string, portal: PortalState | null): Promise<void> {
