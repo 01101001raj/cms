@@ -4,8 +4,20 @@ from app.models.schemas import Distributor, DistributorCreate, PortalState
 from app.core.supabase import get_supabase_client
 from supabase import Client
 from datetime import datetime
+import re
 
 router = APIRouter(prefix="/distributors", tags=["Distributors"])
+
+
+def camel_to_snake(name):
+    """Convert camelCase to snake_case"""
+    name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
+
+
+def convert_dict_keys_to_snake(data):
+    """Convert all dictionary keys from camelCase to snake_case"""
+    return {camel_to_snake(k): v for k, v in data.items()}
 
 
 @router.get("", response_model=List[Distributor])
@@ -73,9 +85,11 @@ async def create_distributor(
 
         # Prepare distributor data
         data = distributor.model_dump()
-        data["agentCode"] = agent_code
-        data["walletBalance"] = 0.0
-        data["dateAdded"] = datetime.utcnow().isoformat()
+        # Convert camelCase keys to snake_case for database
+        data = convert_dict_keys_to_snake(data)
+        data["agent_code"] = agent_code
+        data["wallet_balance"] = 0.0
+        data["date_added"] = datetime.utcnow().isoformat()
 
         response = supabase.table("distributors").insert(data).execute()
 
@@ -98,6 +112,8 @@ async def update_distributor(
     """
     try:
         data = distributor.model_dump()
+        # Convert camelCase keys to snake_case for database
+        data = convert_dict_keys_to_snake(data)
 
         response = supabase.table("distributors").update(data).eq("id", distributor_id).execute()
 
@@ -155,9 +171,11 @@ async def bulk_import_distributors(
 
                 # Prepare distributor data
                 data = distributor.model_dump()
-                data["agentCode"] = agent_code
-                data["walletBalance"] = 0.0
-                data["dateAdded"] = datetime.utcnow().isoformat()
+                # Convert camelCase keys to snake_case for database
+                data = convert_dict_keys_to_snake(data)
+                data["agent_code"] = agent_code
+                data["wallet_balance"] = 0.0
+                data["date_added"] = datetime.utcnow().isoformat()
 
                 response = supabase.table("distributors").insert(data).execute()
 
