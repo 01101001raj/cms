@@ -9,29 +9,34 @@ import requests
 import json
 from datetime import datetime
 
-# Backend API endpoint
-API_URL = "https://backend-imomwt7bm-01101001rajs-projects.vercel.app/api/v1/distributors/bulk-import"
+# Backend API endpoint (latest deployment)
+API_URL = "https://backend-o2hwfjh2k-01101001rajs-projects.vercel.app/api/v1/distributors/bulk-import"
 
 def read_csv(filename):
     """Read CSV file and convert to distributor objects"""
     distributors = []
 
     with open(filename, 'r', encoding='utf-8') as file:
-        reader = csv.DictReader(file)
+        # Try tab-delimited first, then comma
+        reader = csv.DictReader(file, delimiter='\t')
 
         for row in reader:
+            # Skip empty rows
+            if not row.get("name") or not row.get("name").strip():
+                continue
+
             # Map CSV columns to API format
             distributor = {
-                "name": row.get("name", ""),
-                "phone": row.get("phone", ""),
-                "state": row.get("state", ""),
-                "area": row.get("area", ""),
-                "gstin": row.get("gstin", ""),
-                "billingAddress": row.get("billingAddress", ""),
-                "hasSpecialSchemes": row.get("hasSpecialSchemes", "FALSE").upper() == "TRUE",
+                "name": row.get("name", "").strip(),
+                "phone": row.get("phone", "").strip(),
+                "state": row.get("state", "").strip(),
+                "area": row.get("area", "").strip(),
+                "gstin": row.get("gstin", "").strip(),
+                "billingAddress": row.get("billingAddress", "").strip(),
+                "hasSpecialSchemes": row.get("hasSpecialSchemes", "FALSE").strip().upper() == "TRUE",
                 "creditLimit": float(row.get("creditLimit", 0)),
-                "asmName": row.get("asmName", "Default ASM"),  # You need to provide this
-                "executiveName": row.get("executiveName", "Default Executive"),  # You need to provide this
+                "asmName": row.get("asmName", "").strip() or "None",
+                "executiveName": row.get("ExecName", "None").strip() or "None",  # Using ExecName from CSV
                 "priceTierId": None,  # Optional
                 "storeId": None  # Optional
             }
