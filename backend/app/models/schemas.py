@@ -116,7 +116,7 @@ class Distributor(BaseModel):
     phone: str
     state: str
     area: str
-    agent_code: str = Field(serialization_alias="agentCode", validation_alias="agent_code")
+    agent_code: Optional[str] = Field(None, serialization_alias="agentCode", validation_alias="agent_code")
     credit_limit: float = Field(serialization_alias="creditLimit", validation_alias="credit_limit")
     gstin: str
     billing_address: str = Field(serialization_alias="billingAddress", validation_alias="billing_address")
