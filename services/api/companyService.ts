@@ -1,4 +1,4 @@
-import { apiClient } from '../apiClient';
+const API_URL = import.meta.env.VITE_API_URL || 'https://backend-o2hwfjh2k-01101001rajs-projects.vercel.app/api/v1';
 
 export interface Company {
     id: string;
@@ -40,46 +40,62 @@ export const companyService = {
      * Get all companies
      */
     async getCompanies(): Promise<Company[]> {
-        const response = await apiClient.get('/companies');
-        return response.data;
+        const response = await fetch(`${API_URL}/companies`);
+        if (!response.ok) throw new Error('Failed to fetch companies');
+        return response.json();
     },
 
     /**
      * Get primary company (for invoices and documents)
      */
     async getPrimaryCompany(): Promise<Company> {
-        const response = await apiClient.get('/companies/primary');
-        return response.data;
+        const response = await fetch(`${API_URL}/companies/primary`);
+        if (!response.ok) throw new Error('Failed to fetch primary company');
+        return response.json();
     },
 
     /**
      * Get company by ID
      */
     async getCompanyById(id: string): Promise<Company> {
-        const response = await apiClient.get(`/companies/${id}`);
-        return response.data;
+        const response = await fetch(`${API_URL}/companies/${id}`);
+        if (!response.ok) throw new Error('Failed to fetch company');
+        return response.json();
     },
 
     /**
      * Create a new company
      */
     async createCompany(company: CompanyCreate): Promise<Company> {
-        const response = await apiClient.post('/companies', company);
-        return response.data;
+        const response = await fetch(`${API_URL}/companies`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(company),
+        });
+        if (!response.ok) throw new Error('Failed to create company');
+        return response.json();
     },
 
     /**
      * Update company
      */
     async updateCompany(id: string, company: CompanyCreate): Promise<Company> {
-        const response = await apiClient.put(`/companies/${id}`, company);
-        return response.data;
+        const response = await fetch(`${API_URL}/companies/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(company),
+        });
+        if (!response.ok) throw new Error('Failed to update company');
+        return response.json();
     },
 
     /**
      * Delete company
      */
     async deleteCompany(id: string): Promise<void> {
-        await apiClient.delete(`/companies/${id}`);
+        const response = await fetch(`${API_URL}/companies/${id}`, {
+            method: 'DELETE',
+        });
+        if (!response.ok) throw new Error('Failed to delete company');
     },
 };
