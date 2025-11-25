@@ -27,6 +27,7 @@ import DistributorScorecardPage from './components/DistributorScorecardPage';
 import CentralStockPage from './components/CentralStockPage';
 import StoreStockPage from './components/StoreStockPage';
 import ManageSKUs from './components/ManageSKUs';
+import ProductManagement from './components/ProductManagement';
 import ManageSchemes from './components/ManageSchemes';
 import ManagePriceTiers from './components/ManagePriceTiers';
 import UserManagementPage from './components/UserManagement';
@@ -94,7 +95,8 @@ const AppRoutes = () => (
           <Route path="debug-permissions" element={<DebugPermissions />} />
           <Route path="stock/central" element={<CentralStockPage />} />
           <Route path="stock/store/:storeId?" element={<StoreStockPage />} />
-          <Route path="products/manage" element={<ManageSKUs />} />
+          <Route path="products/manage" element={<ProductManagement />} />
+          <Route path="products/simple" element={<ManageSKUs />} />
           <Route path="schemes/manage" element={<ManageSchemes />} />
           <Route path="schemes/history" element={<SchemeHistoryPage />} />
           <Route path="price-tiers/manage" element={<ManagePriceTiers />} />

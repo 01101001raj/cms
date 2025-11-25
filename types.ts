@@ -88,13 +88,38 @@ export interface EnrichedOrderItem extends OrderItem {
   basePrice?: number;
 }
 
-export interface SKU {
-  id: string;
-  name:string;
-  price: number;
-  hsnCode: string;
-  gstPercentage: number;
+export enum ProductType {
+  VOLUME = 'Volume',
+  MASS = 'Mass'
 }
+
+export enum ProductStatus {
+  ACTIVE = 'Active',
+  DISCONTINUED = 'Discontinued',
+  OUT_OF_STOCK = 'Out of Stock'
+}
+
+export interface Product {
+  id: string; // Product_ID (SKU)
+  name: string; // Product_Name
+  category: string; // Category (e.g., Packaged Drinking Water)
+  productType: ProductType; // Volume or Mass
+  unitsPerCarton: number; // Unit_Quantity_Carton
+  unitSize: number; // Unit_Size_Base (mL or g)
+  cartonSize: number; // Carton_Size_Total (calculated L or kg)
+  hsnCode: string; // HSN_Code
+  gstPercentage: number; // GST_Rate_Pct
+  cogsPerCarton: number; // COGS_Carton (Cost of Goods Sold)
+  priceNetCarton: number; // Price_Net_Carton (before GST)
+  priceGrossCarton: number; // Price_Gross_Carton (after GST)
+  status: ProductStatus; // Status
+
+  // Backward compatibility - keep old field
+  price: number; // Same as priceGrossCarton for backward compatibility
+}
+
+// Keep SKU as alias for backward compatibility
+export type SKU = Product;
 
 export interface Scheme {
   id: string;
