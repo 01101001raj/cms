@@ -4,11 +4,10 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { InvoiceData, CompanyDetails, Store } from '../types';
+import { companyService } from '../services/api/companyService';
 import Button from './common/Button';
 import { ArrowLeft } from 'lucide-react';
 import InvoiceTemplate from './InvoiceTemplate';
-
-const COMPANY_DETAILS_KEY = 'companyDetails';
 
 const Invoice: React.FC = () => {
     const { orderId } = useParams<{ orderId: string }>();
@@ -34,23 +33,26 @@ const Invoice: React.FC = () => {
                     setInvoiceData(data);
                     // Determine billing source
                     if (data.distributor.storeId) {
+                        // For store distributors, use store details
                         const store = await api.getStoreById(data.distributor.storeId);
                         if (store) {
                             setBillingDetails(store);
                         } else {
-                             const savedDetails = localStorage.getItem(COMPANY_DETAILS_KEY);
-                             setBillingDetails(savedDetails ? JSON.parse(savedDetails) : null);
+                            // Fallback to company details
+                            const company = await companyService.getPrimaryCompany();
+                            setBillingDetails(company as any);
                         }
                     } else {
-                        // No storeId, use main company details
-                        const savedDetails = localStorage.getItem(COMPANY_DETAILS_KEY);
-                        setBillingDetails(savedDetails ? JSON.parse(savedDetails) : null);
+                        // No storeId, use main company details from database
+                        const company = await companyService.getPrimaryCompany();
+                        setBillingDetails(company as any);
                     }
 
                 } else {
                     setError("Invoice not found.");
                 }
             } catch (err) {
+                console.error("Failed to load invoice data:", err);
                 setError("Failed to load invoice data.");
             } finally {
                 setLoading(false);
