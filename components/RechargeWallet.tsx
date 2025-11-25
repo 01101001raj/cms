@@ -211,7 +211,7 @@ const RechargeWallet: React.FC = () => {
             >
               <option value="">-- Choose Account --</option>
               {accountType === 'distributor'
-                ? distributors.map(d => <option key={d.id} value={d.id}>{d.agentCode} - {d.name}</option>)
+                ? distributors.map(d => <option key={d.id} value={d.id}>{d.agentCode ? `${d.agentCode} - ${d.name}` : d.name}</option>)
                 : stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)
               }
             </Select>

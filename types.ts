@@ -39,7 +39,7 @@ export interface Store {
 
 export interface Distributor {
   id: string;
-  agentCode: string;
+  agentCode?: string;
   name: string;
   phone: string;
   state: string;

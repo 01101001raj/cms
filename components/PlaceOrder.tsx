@@ -483,7 +483,7 @@ const PlaceOrder: React.FC = () => {
                         {mode === 'order' ? (
                             <Select id="distributor" label="Select Distributor" value={selectedDistributorId} onChange={(e) => setSelectedDistributorId(e.target.value)} disabled={isLoading}>
                                 <option value="">-- Choose Distributor --</option>
-                                {distributors.map(d => <option key={d.id} value={d.id}>{d.agentCode} - {d.name}</option>)}
+                                {distributors.map(d => <option key={d.id} value={d.id}>{d.agentCode ? `${d.agentCode} - ${d.name}` : d.name}</option>)}
                             </Select>
                         ) : (
                             <Select id="store" label="Select Destination Store" value={selectedStoreId} onChange={e => setSelectedStoreId(e.target.value)} disabled={isLoading}>

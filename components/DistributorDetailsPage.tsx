@@ -347,7 +347,7 @@ const DistributorDetailsPage: React.FC = () => {
                     <h1 className="text-3xl font-bold text-content">{distributor.name}</h1>
                     <div className="flex gap-4 items-center">
                         <p className="font-mono text-sm text-contentSecondary">ID: {distributor.id}</p>
-                        <p className="font-bold text-sm text-primary">Agent Code: {distributor.agentCode}</p>
+                        {distributor.agentCode && <p className="font-bold text-sm text-primary">Agent Code: {distributor.agentCode}</p>}
                     </div>
                 </div>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 self-start sm:self-center w-full sm:w-auto">
