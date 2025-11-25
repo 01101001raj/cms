@@ -16,12 +16,24 @@ const Sidebar: React.FC<{ isOpen: boolean; closeSidebar: () => void; }> = ({ isO
     const inactiveClassName = "text-contentSecondary hover:bg-slate-100";
 
     const renderLink = (link: any) => {
-        if (!currentUser?.permissions) return null;
-        
+        if (!currentUser?.permissions) {
+            console.log(`[Layout] No permissions found for user`);
+            return null;
+        }
+
         // If a portal type is specified for the link, check it matches the current portal
         if (link.portal && portal?.type !== link.portal) return null;
 
         const hasAccess = currentUser.permissions.includes(link.path);
+
+        // Debug logging for Customer Statement
+        if (link.path === '/customer-statement') {
+            console.log(`[Layout] Customer Statement permission check:`, {
+                hasAccess,
+                userPermissions: currentUser.permissions,
+                linkPath: link.path
+            });
+        }
 
         if (!hasAccess) return null;
 

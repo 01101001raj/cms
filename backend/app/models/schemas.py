@@ -116,6 +116,7 @@ class Distributor(BaseModel):
     phone: str
     state: str
     area: str
+    agent_code: str = Field(serialization_alias="agentCode", validation_alias="agent_code")
     credit_limit: float = Field(serialization_alias="creditLimit", validation_alias="credit_limit")
     gstin: str
     billing_address: str = Field(serialization_alias="billingAddress", validation_alias="billing_address")
@@ -322,3 +323,40 @@ class Notification(BaseModel):
     message: str
     isRead: bool
     type: NotificationType
+
+
+class Company(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True, ser_json_by_alias=True)
+
+    id: str
+    name: str
+    address_line1: str = Field(serialization_alias="addressLine1", validation_alias="address_line1")
+    address_line2: str = Field(serialization_alias="addressLine2", validation_alias="address_line2")
+    city: str
+    state: str
+    pincode: str
+    phone: str
+    email: str
+    gstin: str
+    pan: str
+    bank_name: Optional[str] = Field(None, serialization_alias="bankName", validation_alias="bank_name")
+    account_number: Optional[str] = Field(None, serialization_alias="accountNumber", validation_alias="account_number")
+    ifsc_code: Optional[str] = Field(None, serialization_alias="ifscCode", validation_alias="ifsc_code")
+    logo_url: Optional[str] = Field(None, serialization_alias="logoUrl", validation_alias="logo_url")
+
+
+class CompanyCreate(BaseModel):
+    name: str
+    addressLine1: str
+    addressLine2: str
+    city: str
+    state: str
+    pincode: str
+    phone: str
+    email: str
+    gstin: str
+    pan: str
+    bankName: Optional[str] = None
+    accountNumber: Optional[str] = None
+    ifscCode: Optional[str] = None
+    logoUrl: Optional[str] = None

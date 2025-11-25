@@ -54,10 +54,26 @@ async def create_distributor(
     supabase: Client = Depends(get_supabase_client)
 ):
     """
-    Create a new distributor
+    Create a new distributor with auto-generated agent code
     """
     try:
+        # Generate agent code
+        # Get all existing agent codes to find the next available one
+        existing_response = supabase.table("distributors").select("agent_code").execute()
+        existing_codes = []
+
+        for dist in existing_response.data:
+            code = dist.get("agent_code")
+            if code and code.isdigit():
+                existing_codes.append(int(code))
+
+        # Find next available code (start from 101)
+        next_code = max(existing_codes) + 1 if existing_codes else 101
+        agent_code = str(next_code).zfill(3)  # Format as 3 digits: 101, 102, 103...
+
+        # Prepare distributor data
         data = distributor.model_dump()
+        data["agentCode"] = agent_code
         data["walletBalance"] = 0.0
         data["dateAdded"] = datetime.utcnow().isoformat()
 
