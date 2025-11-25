@@ -122,3 +122,61 @@ async def delete_distributor(
         return {"message": "Distributor deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/bulk-import")
+async def bulk_import_distributors(
+    distributors: List[DistributorCreate],
+    supabase: Client = Depends(get_supabase_client)
+):
+    """
+    Bulk import distributors from sheets/CSV
+    Automatically generates agent codes starting from 101
+    """
+    try:
+        # Get existing agent codes to find the starting point
+        existing_response = supabase.table("distributors").select("agent_code").execute()
+        existing_codes = []
+
+        for dist in existing_response.data:
+            code = dist.get("agent_code")
+            if code and code.isdigit():
+                existing_codes.append(int(code))
+
+        # Start from next available code (or 101 if none exist)
+        next_code = max(existing_codes) + 1 if existing_codes else 101
+
+        created_distributors = []
+        errors = []
+
+        for idx, distributor in enumerate(distributors):
+            try:
+                agent_code = str(next_code + idx).zfill(3)  # Format as 3 digits
+
+                # Prepare distributor data
+                data = distributor.model_dump()
+                data["agentCode"] = agent_code
+                data["walletBalance"] = 0.0
+                data["dateAdded"] = datetime.utcnow().isoformat()
+
+                response = supabase.table("distributors").insert(data).execute()
+
+                if response.data:
+                    created_distributors.append(response.data[0])
+                else:
+                    errors.append(f"Row {idx + 1}: Failed to create distributor")
+
+            except Exception as e:
+                errors.append(f"Row {idx + 1} ({distributor.name}): {str(e)}")
+
+        return {
+            "success": True,
+            "message": f"Imported {len(created_distributors)} distributors",
+            "created_count": len(created_distributors),
+            "error_count": len(errors),
+            "errors": errors if errors else None,
+            "next_agent_code": str(next_code + len(distributors)).zfill(3)
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
