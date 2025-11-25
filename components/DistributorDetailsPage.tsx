@@ -345,7 +345,10 @@ const DistributorDetailsPage: React.FC = () => {
                 <div>
                     <Button onClick={() => navigate(-1)} variant="secondary" size="sm" className="mb-4"><ArrowLeft size={16}/> Back to List</Button>
                     <h1 className="text-3xl font-bold text-content">{distributor.name}</h1>
-                    <p className="font-mono text-sm text-contentSecondary">{distributor.id}</p>
+                    <div className="flex gap-4 items-center">
+                        <p className="font-mono text-sm text-contentSecondary">ID: {distributor.id}</p>
+                        <p className="font-bold text-sm text-primary">Agent Code: {distributor.agentCode}</p>
+                    </div>
                 </div>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 self-start sm:self-center w-full sm:w-auto">
                     <Button onClick={() => navigate('/recharge-wallet', { state: { distributorId: distributor.id } })} variant="secondary" className="w-full sm:w-auto"><Wallet size={16}/> Recharge Wallet</Button>
