@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends
 from app.core.supabase import get_supabase_admin_client
 from supabase import Client
+import os
+from pathlib import Path
 
 router = APIRouter(prefix="/migrations", tags=["Migrations"])
 
@@ -228,5 +230,45 @@ async def create_asm_users(
     except Exception as e:
         import traceback
         print(f"ERROR in create_asm_users: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/run-sql/{migration_name}")
+async def run_sql_migration(
+    migration_name: str,
+    supabase: Client = Depends(get_supabase_admin_client)
+):
+    """
+    Run a SQL migration file from the migrations directory
+    """
+    try:
+        # Get the migrations directory path
+        migrations_dir = Path(__file__).parent.parent.parent.parent / "migrations"
+        migration_file = migrations_dir / f"{migration_name}.sql"
+
+        if not migration_file.exists():
+            raise HTTPException(status_code=404, detail=f"Migration file {migration_name}.sql not found")
+
+        # Read the SQL file
+        with open(migration_file, 'r') as f:
+            sql_content = f.read()
+
+        # Execute the SQL using Supabase RPC
+        # Note: Supabase client doesn't directly support raw SQL execution
+        # We need to use the PostgREST rpc function
+        result = supabase.rpc('exec_sql', {'sql': sql_content}).execute()
+
+        return {
+            "success": True,
+            "message": f"Migration {migration_name} executed successfully",
+            "result": result.data
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"ERROR in run_sql_migration: {str(e)}")
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))

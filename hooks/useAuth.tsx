@@ -4,87 +4,90 @@ import { supabase } from '../services/supabaseClient';
 import { menuItems } from '../constants';
 
 interface AuthContextType {
-  currentUser: User | null;
-  userRole: UserRole | null;
-  portal: PortalState | null;
-  setPortal: (portal: PortalState | null) => void;
-  login: (email: string, pass: string) => Promise<void>;
-  logout: () => void;
-  isLoading: boolean;
+    currentUser: User | null;
+    userRole: UserRole | null;
+    portal: PortalState | null;
+    setPortal: (portal: PortalState | null) => void;
+    login: (email: string, pass: string) => Promise<void>;
+    logout: () => void;
+    isLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
     currentUser: null,
     userRole: null,
     portal: null,
-    setPortal: () => {},
-    login: async () => {},
-    logout: () => {},
+    setPortal: () => { },
+    login: async () => { },
+    logout: () => { },
     isLoading: true,
 });
 
-const PORTAL_STORAGE_KEY = 'distributorAppPortal';
-const USER_PROFILE_STORAGE_KEY = 'distributorAppUserProfile';
+const PORTAL_STORAGE_KEY = 'cms_portal_state';
+const USER_CACHE_KEY = 'cms_user_cache';
+const CACHE_VERSION = '1.0.2'; // Bumped to refresh permissions with new menu items
+const MAX_LOADING_TIME = 3000; // 3 seconds max loading time
 
-// Synchronously load initial state from storage to prevent UI flicker on refresh.
-const getInitialUser = (): User | null => {
+interface CachedUserData {
+    version: string;
+    user: User;
+    portal: PortalState | null;
+}
+
+// Get cached user data from localStorage
+const getCachedUser = (): CachedUserData | null => {
     try {
-        const item = sessionStorage.getItem(USER_PROFILE_STORAGE_KEY);
-        return item ? JSON.parse(item) : null;
-    } catch (error) {
-        console.error("Failed to parse user from sessionStorage", error);
-        sessionStorage.removeItem(USER_PROFILE_STORAGE_KEY);
+        const cached = localStorage.getItem(USER_CACHE_KEY);
+        if (!cached) return null;
+        const data = JSON.parse(cached);
+        // Validate version
+        if (data.version !== CACHE_VERSION) {
+            console.log('[Auth] Cache version mismatch, clearing');
+            localStorage.removeItem(USER_CACHE_KEY);
+            return null;
+        }
+        return data;
+    } catch (e) {
+        console.error('[Auth] Failed to read user cache:', e);
         return null;
     }
 };
 
-const getInitialPortal = (): PortalState | null => {
+// Save user data to localStorage cache
+const setCachedUser = (user: User, portal: PortalState | null) => {
     try {
-        const item = localStorage.getItem(PORTAL_STORAGE_KEY);
-        return item ? JSON.parse(item) : null;
-    } catch (error) {
-        console.error("Failed to parse portal from localStorage", error);
+        const data: CachedUserData = {
+            version: CACHE_VERSION,
+            user,
+            portal
+        };
+        localStorage.setItem(USER_CACHE_KEY, JSON.stringify(data));
+    } catch (e) {
+        console.error('[Auth] Failed to cache user data:', e);
+    }
+};
+
+// Clear user cache from localStorage
+const clearUserCache = () => {
+    try {
+        localStorage.removeItem(USER_CACHE_KEY);
         localStorage.removeItem(PORTAL_STORAGE_KEY);
-        return null;
+    } catch (e) {
+        console.error('[Auth] Failed to clear user cache:', e);
     }
 };
-
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    // Initialize state from storage for an instant UI response on page loads.
-    const [currentUser, setCurrentUser] = useState<User | null>(getInitialUser);
-    const [portal, setPortalState] = useState<PortalState | null>(getInitialPortal);
-    // isLoading is now for the initial session *verification*, not the initial data load.
-    const [isLoading, setIsLoading] = useState(true);
+    // Read cache exactly ONCE
+    const initialCache = useMemo(() => getCachedUser(), []);
 
-    const clearSession = useCallback(() => {
-        setCurrentUser(null);
-        setPortalState(null);
-        try {
-            sessionStorage.removeItem(USER_PROFILE_STORAGE_KEY);
-            localStorage.removeItem(PORTAL_STORAGE_KEY);
-        } catch (e) {
-            console.error("Failed to clear session data from storage", e);
-        }
-    }, []);
+    // Initialize state from cache for instant UI
+    const [currentUser, setCurrentUser] = useState<User | null>(initialCache?.user || null);
+    const [portal, setPortalState] = useState<PortalState | null>(initialCache?.portal || null);
+    const [isLoading, setIsLoading] = useState(!initialCache);
 
-    const persistUserAndPortal = useCallback((user: User, resolvedPortal: PortalState | null) => {
-        setCurrentUser(user);
-        setPortalState(resolvedPortal);
-        try {
-            sessionStorage.setItem(USER_PROFILE_STORAGE_KEY, JSON.stringify(user));
-            if (resolvedPortal) {
-                localStorage.setItem(PORTAL_STORAGE_KEY, JSON.stringify(resolvedPortal));
-            } else {
-                localStorage.removeItem(PORTAL_STORAGE_KEY);
-            }
-        } catch (e) {
-            console.error("Failed to persist session data to storage", e);
-        }
-    }, []);
-    
-    // Fetch user profile and permissions from database
-    const fetchUserProfile = useCallback(async (userId: string) => {
+    // Fetch user profile and determine portal from database
+    const fetchUserProfile = useCallback(async (userId: string): Promise<{ userProfile: User; resolvedPortal: PortalState | null }> => {
         const { data: profile, error } = await supabase
             .from('users')
             .select('*, stores ( name )')
@@ -93,13 +96,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (error) throw error;
 
-        // Add a hard check for misconfigured store-level users
+        // Validate store-level users have a store_id
         if ([UserRole.STORE_ADMIN, UserRole.ASM, UserRole.EXECUTIVE, UserRole.USER].includes(profile.role) && !profile.store_id) {
             throw new Error(`User with role '${profile.role}' is not associated with a store. Please contact an administrator.`);
         }
 
-        // For Plant Admin, ALWAYS generate fresh permissions from menuItems
-        // For other roles, use database permissions
+        // Build user profile
         const userProfile: User = {
             id: profile.id,
             username: profile.username,
@@ -111,17 +113,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             asmId: profile.asm_id
         };
 
+        // Determine portal state
         let resolvedPortal: PortalState | null = null;
         if (userProfile.role === UserRole.PLANT_ADMIN) {
-            // For Plant Admins, respect the portal choice they previously saved.
-            resolvedPortal = getInitialPortal();
+            // For Plant Admins, check if they have a saved portal preference
+            try {
+                const savedPortal = localStorage.getItem(PORTAL_STORAGE_KEY);
+                if (savedPortal) {
+                    resolvedPortal = JSON.parse(savedPortal);
+                }
+            } catch (e) {
+                console.error('[Auth] Failed to parse saved portal:', e);
+            }
         } else if (userProfile.storeId) {
-            // For store-based users, lock them to their assigned store portal.
+            // For store users, lock to their store
             const storeName = profile.stores?.name;
             if (storeName) {
                 resolvedPortal = { type: 'store', id: userProfile.storeId, name: storeName };
             } else {
-                // Fallback fetch if the initial join failed for some reason
                 const { data: store } = await supabase.from('stores').select('name').eq('id', userProfile.storeId).single();
                 resolvedPortal = { type: 'store', id: userProfile.storeId, name: store?.name || `Store ${userProfile.storeId}` };
             }
@@ -130,69 +139,171 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { userProfile, resolvedPortal };
     }, []);
 
+    // Main authentication effect
     useEffect(() => {
         if (!supabase) {
+            console.error("[Auth] Supabase client is not initialized.");
             setIsLoading(false);
             return;
         }
 
-        // FIX: Cast `supabase.auth` to `any` to access `onAuthStateChange`.
-        const { data: authListener } = (supabase.auth as any).onAuthStateChange(async (event, session) => {
-            if (!session) {
-                if (currentUser) clearSession(); // Clear state if a session ends
-                setIsLoading(false);
-                return;
+        let mounted = true;
+        let loadingTimeout: NodeJS.Timeout | null = null;
+
+        // CRITICAL: Set timeout to force logout if loading takes too long
+        if (isLoading) {
+            console.log('[Auth] Starting loading timeout (3 seconds)');
+            loadingTimeout = setTimeout(() => {
+                if (mounted && isLoading) {
+                    console.warn('[Auth] Loading timeout reached - forcing logout');
+                    setCurrentUser(null);
+                    setPortalState(null);
+                    clearUserCache();
+                    setIsLoading(false);
+                    // Force sign out from Supabase
+                    supabase.auth.signOut();
+                }
+            }, MAX_LOADING_TIME);
+        }
+
+        // Listen for auth state changes from Supabase
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            console.log('[Auth] Event:', event, '| Has session:', !!session);
+
+            if (!mounted) return;
+
+            // Clear timeout if we get a response
+            if (loadingTimeout) {
+                clearTimeout(loadingTimeout);
+                loadingTimeout = null;
             }
 
-            // REMOVED Fast Path - Always fetch fresh permissions from database
-            // This ensures Plant Admin always gets the latest menu items
-            try {
-                const { userProfile, resolvedPortal } = await fetchUserProfile(session.user.id);
-                persistUserAndPortal(userProfile, resolvedPortal);
-            } catch (error) {
-                console.error("Critical: Failed to fetch user profile for an active session. Logging out.", error);
-                // If we have a session but absolutely cannot get a profile, something is wrong.
-                // Logging out is the safest way to handle this inconsistent state.
-                // FIX: Cast `supabase.auth` to `any` to access `signOut`.
-                await (supabase.auth as any).signOut();
-                clearSession();
-            } finally {
+            if (session?.user) {
+                // We have a session
+                const cachedData = getCachedUser();
+
+                // Use cache if it matches the session
+                if (cachedData && cachedData.user.id === session.user.id) {
+                    console.log('[Auth] Cache valid - using it');
+                    setCurrentUser(cachedData.user);
+                    setPortalState(cachedData.portal);
+                    setIsLoading(false);
+                    return;
+                }
+
+                // Fetch fresh profile
+                try {
+                    console.log('[Auth] Fetching fresh profile');
+                    const { userProfile, resolvedPortal } = await fetchUserProfile(session.user.id);
+                    if (mounted) {
+                        setCurrentUser(userProfile);
+                        setPortalState(resolvedPortal);
+                        setCachedUser(userProfile, resolvedPortal);
+                        setIsLoading(false);
+                    }
+                } catch (error) {
+                    console.error('[Auth] Profile fetch failed:', error);
+                    await supabase.auth.signOut();
+                    setCurrentUser(null);
+                    setPortalState(null);
+                    clearUserCache();
+                    setIsLoading(false);
+                }
+            } else {
+                // No session
+                console.log('[Auth] No session - logged out');
+                setCurrentUser(null);
+                setPortalState(null);
+                clearUserCache();
                 setIsLoading(false);
             }
         });
 
-        return () => {
-            authListener.subscription.unsubscribe();
+        // Handle visibility change - restore from cache immediately
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && mounted) {
+                const cachedData = getCachedUser();
+                if (cachedData) {
+                    console.log('[Auth] App visible - restoring cache');
+                    setCurrentUser(cachedData.user);
+                    setPortalState(cachedData.portal);
+                    setIsLoading(false);
+                }
+            }
         };
-    }, [fetchUserProfile, persistUserAndPortal, clearSession]);
 
+        document.addEventListener('visibilitychange', handleVisibilityChange);
 
+        // Cleanup
+        return () => {
+            mounted = false;
+            if (loadingTimeout) clearTimeout(loadingTimeout);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            subscription.unsubscribe();
+        };
+    }, [fetchUserProfile, isLoading]);
+
+    // Login function
     const login = useCallback(async (email: string, pass: string) => {
         if (!supabase) throw new Error("Supabase is not connected.");
-        // Clear any previous session data before attempting a new login.
-        clearSession();
-        // FIX: Cast `supabase.auth` to `any` to access `signInWithPassword`.
-        const { error } = await (supabase.auth as any).signInWithPassword({ email, password: pass });
-        if (error) throw error;
-        // The onAuthStateChange listener will handle fetching the profile and setting the state.
-    }, [clearSession]);
 
-    const logout = useCallback(async () => {
-        if (!supabase) return;
-        // FIX: Cast `supabase.auth` to `any` to access `signOut`.
-        await (supabase.auth as any).signOut();
-        // The onAuthStateChange listener will automatically call clearSession.
-    }, []);
+        setIsLoading(true);
+        try {
+            const { error } = await supabase.auth.signInWithPassword({
+                email,
+                password: pass
+            });
 
-    const setPortal = useCallback((newPortal: PortalState | null) => {
-        setPortalState(newPortal);
-        if (newPortal) {
-            localStorage.setItem(PORTAL_STORAGE_KEY, JSON.stringify(newPortal));
-        } else {
-            localStorage.removeItem(PORTAL_STORAGE_KEY);
+            if (error) throw error;
+            // onAuthStateChange will handle fetching the profile
+        } catch (error) {
+            setIsLoading(false);
+            throw error;
         }
     }, []);
 
+    // Logout function
+    const logout = useCallback(async () => {
+        if (!supabase) return;
+
+        try {
+            await supabase.auth.signOut();
+            setCurrentUser(null);
+            setPortalState(null);
+            clearUserCache();
+            setIsLoading(false);
+        } catch (error) {
+            console.error('[Auth] Logout error:', error);
+            // Force clear even on error
+            setCurrentUser(null);
+            setPortalState(null);
+            clearUserCache();
+            setIsLoading(false);
+        }
+    }, []);
+
+    // Set portal function (for Plant Admins switching portals)
+    const setPortal = useCallback((newPortal: PortalState | null) => {
+        setPortalState(newPortal);
+
+        // Update cache with new portal
+        if (currentUser) {
+            setCachedUser(currentUser, newPortal);
+        }
+
+        // Persist portal preference to localStorage
+        try {
+            if (newPortal) {
+                localStorage.setItem(PORTAL_STORAGE_KEY, JSON.stringify(newPortal));
+            } else {
+                localStorage.removeItem(PORTAL_STORAGE_KEY);
+            }
+        } catch (e) {
+            console.error('[Auth] Failed to persist portal state:', e);
+        }
+    }, [currentUser]);
+
+    // Memoize context value to prevent unnecessary re-renders
     const value = useMemo(() => ({
         currentUser,
         userRole: currentUser?.role || null,
@@ -205,11 +316,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return (
         <AuthContext.Provider value={value}>
-          {children}
+            {children}
         </AuthContext.Provider>
     );
 };
 
 export const useAuth = () => {
-  return useContext(AuthContext);
+    return useContext(AuthContext);
 };

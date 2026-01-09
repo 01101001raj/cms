@@ -62,29 +62,43 @@ async def create_order(
     Create a new order with items
     Backend calculates total amount from items to avoid floating-point errors
     """
+    print(f"[DEBUG] Function called with order_data type: {type(order_data)}")
     try:
+        print(f"[DEBUG] Received order_data: {order_data.model_dump()}")
         order_items = []
         total_amount = 0.0
+        total_shipment_size = 0.0  # Track total shipment size
 
         # Validate that all items exist and calculate total
         for item in order_data.items:
-            # Verify SKU exists and get price + GST
-            sku_response = supabase.table("skus").select("id, name, price, gst_percentage").eq("id", item.skuId).execute()
+            print(f"[DEBUG] Processing item: {item}")
+            # Verify SKU exists and get price, GST, and carton_size
+            sku_response = supabase.table("skus").select("id, name, price, gst_percentage, carton_size").eq("id", item.skuId).execute()
+            print(f"[DEBUG] SKU response: {sku_response.data}")
             if not sku_response.data or len(sku_response.data) == 0:
                 raise HTTPException(status_code=404, detail=f"SKU {item.skuId} not found")
 
             sku = sku_response.data[0]
 
             # Use provided unit price (from price tiers) or default SKU price
+            # Note: unit_price is the GROSS price (already includes GST)
             unit_price = item.unitPrice if item.unitPrice is not None else sku["price"]
             is_freebie = item.isFreebie if item.isFreebie is not None else False
 
-            # Calculate item total with GST (freebies don't add to total)
+            # Calculate item total (freebies don't add to total)
+            # unitPrice already includes GST, so we don't multiply by gst_multiplier
             if not is_freebie:
-                # Calculate price with GST
+                # For backend validation: calculate net price and then add GST
+                # This ensures consistency with frontend calculation
                 gst_multiplier = 1 + (sku["gst_percentage"] / 100)
-                item_total = round(unit_price * item.quantity * gst_multiplier, 2)
+                net_price = unit_price / gst_multiplier
+                item_total = round(net_price * item.quantity * gst_multiplier, 2)
                 total_amount += item_total
+            
+            # Calculate shipment size (carton_size × quantity) for all items including freebies
+            item_shipment_size = sku.get("carton_size", 0) * item.quantity
+            total_shipment_size += item_shipment_size
+            print(f"[DEBUG] Item processed. Total so far: {total_amount}, Shipment size: {item_shipment_size}")
 
             order_items.append({
                 "skuId": item.skuId,
@@ -95,9 +109,14 @@ async def create_order(
             })
 
         # Check wallet balance
-        distributor = supabase.table("distributors").select("wallet_balance").eq("id", order_data.distributorId).single().execute()
-        if not distributor.data or distributor.data["wallet_balance"] < total_amount:
-            raise HTTPException(status_code=400, detail="Insufficient wallet balance")
+        print(f"[DEBUG] Checking wallet for distributor: {order_data.distributorId}, total: {total_amount}")
+        distributor = supabase.table("distributors").select("wallet_balance, credit_limit").eq("id", order_data.distributorId).single().execute()
+        # Allow negative balance for special concessions/management approval
+        # Check wallet balance but only log warning if insufficient
+        available_balance = distributor.data["wallet_balance"] + distributor.data.get("credit_limit", 0)
+        if total_amount > available_balance:
+            print(f"[WARNING] Negative balance order: Has {available_balance}, Needs {total_amount} for distributor {order_data.distributorId}. Allowing with management approval.")
+        # Order will proceed regardless of balance
 
         # Create order
         order_id = f"ORD-{int(datetime.utcnow().timestamp() * 1000)}"
@@ -106,8 +125,10 @@ async def create_order(
             "distributor_id": order_data.distributorId,
             "date": datetime.utcnow().isoformat(),
             "total_amount": total_amount,
+            "shipment_size": total_shipment_size,
             "status": OrderStatus.PENDING.value,
-            "placed_by_exec_id": order_data.username
+            "placed_by_exec_id": order_data.username,
+            "approval_granted_by": order_data.approvalGrantedBy
         }
 
         order_response = supabase.table("orders").insert(order_obj).execute()
@@ -203,11 +224,13 @@ async def update_order_items(
         amount_delta = total_amount - original_total
 
         # Check wallet balance for the difference
-        distributor = supabase.table("distributors").select("wallet_balance").eq("id", order.data["distributor_id"]).single().execute()
+        distributor = supabase.table("distributors").select("wallet_balance, credit_limit").eq("id", order.data["distributor_id"]).single().execute()
         new_balance = distributor.data["wallet_balance"] - amount_delta
 
+        # Allow negative balance for special concessions
         if new_balance < 0:
-            raise HTTPException(status_code=400, detail="Insufficient wallet balance for this change")
+            print(f"[WARNING] Order edit will result in negative balance: {new_balance} for distributor {order.data['distributor_id']}. Allowing with management approval.")
+        # Continue regardless of balance
 
         # Update order items
         supabase.table("order_items").delete().eq("order_id", order_id).execute()

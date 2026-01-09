@@ -6,19 +6,13 @@ import Button from './common/Button';
 import Input from './common/Input';
 import Select from './common/Select';
 import { useAuth } from '../hooks/useAuth';
-import { Package, History, XCircle, PlusCircle, Trash2, Save, CheckCircle, List, Layers, Download, X, BarChart2 } from 'lucide-react';
+import { Package, History, XCircle, Trash2, Save, CheckCircle, List, Layers, Download, BarChart2 } from 'lucide-react';
 import { formatIndianNumber, formatDateTimeDDMMYYYY } from '../utils/formatting';
 import { useSortableData } from '../hooks/useSortableData';
 import SortableTableHeader from './common/SortableTableHeader';
 import DateRangePicker from './common/DateRangePicker';
 import { useNavigate } from 'react-router-dom';
 
-
-interface ProductionItem {
-    id: string;
-    skuId: string;
-    quantity: number | string;
-}
 
 const CentralStockPage: React.FC = () => {
     const { currentUser } = useAuth();
@@ -28,13 +22,14 @@ const CentralStockPage: React.FC = () => {
     const [skus, setSkus] = useState<SKU[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    
-    const [productionItems, setProductionItems] = useState<ProductionItem[]>([]);
-    const [hasInitializedProductionItems, setHasInitializedProductionItems] = useState(false);
+
+    // Bulk Entry State: Map of SKU ID -> Quantity (string to allow temporary empty/partial inputs)
+    const [productionQuantities, setProductionQuantities] = useState<Record<string, string>>({});
+
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
     const [activeTab, setActiveTab] = useState<'overview' | 'ledger'>('overview');
-    
+
     // Ledger Filters
     const [ledgerSkuFilter, setLedgerSkuFilter] = useState('all');
     const [ledgerTypeFilter, setLedgerTypeFilter] = useState('all');
@@ -49,7 +44,7 @@ const CentralStockPage: React.FC = () => {
     const [ledgerDateRange, setLedgerDateRange] = useState(getInitialLedgerDateRange());
 
     const skuMap = useMemo(() => new Map(skus.map(s => [s.id, s.name])), [skus]);
-    
+
     const fetchData = useCallback(async () => {
         setLoading(true);
         setError(null);
@@ -77,17 +72,6 @@ const CentralStockPage: React.FC = () => {
         fetchData();
     }, [fetchData]);
 
-    useEffect(() => {
-        if (skus.length > 0 && !hasInitializedProductionItems) {
-            setProductionItems([{
-                id: Date.now().toString(),
-                skuId: skus[0].id,
-                quantity: '',
-            }]);
-            setHasInitializedProductionItems(true);
-        }
-    }, [skus, hasInitializedProductionItems]);
-
 
     const recentProductions = useMemo(() => {
         return ledger
@@ -107,7 +91,7 @@ const CentralStockPage: React.FC = () => {
             return true;
         });
     }, [ledger, ledgerDateRange, ledgerSkuFilter, ledgerTypeFilter]);
-    
+
     const { items: sortedLedger, requestSort: requestLedgerSort, sortConfig: ledgerSortConfig } = useSortableData(filteredLedger, { key: 'date', direction: 'descending' });
 
     const ledgerSummary = useMemo(() => {
@@ -150,28 +134,25 @@ const CentralStockPage: React.FC = () => {
         </Card>
     );
 
-    const handleItemChange = (id: string, field: 'skuId' | 'quantity', value: string | number) => {
-        setProductionItems(items => items.map(item => item.id === id ? { ...item, [field]: value } : item));
-    };
-
-    const handleAddItem = () => {
-        if (skus.length > 0) {
-            setProductionItems(items => [...items, { id: Date.now().toString(), skuId: skus[0].id, quantity: '' }]);
-        }
-    };
-
-    const handleRemoveItem = (id: string) => {
-        setProductionItems(items => items.filter(item => item.id !== id));
+    const handleQuantityChange = (skuId: string, value: string) => {
+        setProductionQuantities(prev => ({
+            ...prev,
+            [skuId]: value
+        }));
     };
 
     const handleAddProduction = async () => {
         if (!currentUser) return;
-        const itemsToSubmit = productionItems
-            .map(item => ({ skuId: item.skuId, quantity: Number(item.quantity) }))
+
+        const itemsToSubmit = Object.entries(productionQuantities)
+            .map(([skuId, qtyStr]) => ({
+                skuId,
+                quantity: parseInt(qtyStr || '0', 10)
+            }))
             .filter(item => item.quantity > 0);
-        
+
         if (itemsToSubmit.length === 0) {
-            setStatusMessage({ type: 'error', text: 'Please add at least one item with a quantity greater than zero.' });
+            setStatusMessage({ type: 'error', text: 'Please enter a quantity for at least one product.' });
             return;
         }
 
@@ -179,17 +160,17 @@ const CentralStockPage: React.FC = () => {
         setStatusMessage(null);
         try {
             await api.addPlantProduction(itemsToSubmit, currentUser.username);
-            setStatusMessage({ type: 'success', text: 'Production added successfully and stock updated.' });
+            setStatusMessage({ type: 'success', text: `Production recorded for ${itemsToSubmit.length} products. Stock updated.` });
             setTimeout(() => setStatusMessage(null), 4000);
             await fetchData(); // Refresh data
-            setProductionItems([{ id: Date.now().toString(), skuId: skus[0].id, quantity: '' }]); // Reset form
+            setProductionQuantities({}); // Reset form
         } catch (err) {
             setStatusMessage({ type: 'error', text: err instanceof Error ? err.message : 'An error occurred while adding production.' });
         } finally {
             setIsSubmitting(false);
         }
     };
-    
+
     const escapeCsvCell = (cell: any): string => {
         const str = String(cell ?? '');
         if (str.includes(',') || str.includes('"') || str.includes('\n')) {
@@ -197,7 +178,7 @@ const CentralStockPage: React.FC = () => {
         }
         return str;
     };
-    
+
     const triggerCsvDownload = (content: string, filename: string) => {
         const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
@@ -211,7 +192,7 @@ const CentralStockPage: React.FC = () => {
             document.body.removeChild(link);
         }
     };
-    
+
     const handleExportStockCsv = () => {
         if (sortedStock.length === 0) return;
         const headers = ['Product Name', 'On Hand', 'Reserved', 'Available'];
@@ -224,7 +205,7 @@ const CentralStockPage: React.FC = () => {
         const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
         triggerCsvDownload(csvContent, `plant_inventory_${new Date().toISOString().split('T')[0]}.csv`);
     };
-    
+
     const handleExportLedgerCsv = () => {
         if (sortedLedger.length === 0) return;
         const headers = ['Date', 'Product', 'Type', 'Quantity Change', 'Balance After', 'Notes', 'Initiated By'];
@@ -245,6 +226,9 @@ const CentralStockPage: React.FC = () => {
         return <Card className="text-center"><p>You do not have permission to view this page.</p></Card>;
     }
 
+    // Sort SKUs for the bulk entry form
+    const sortedSkusForEntry = [...skus].sort((a, b) => a.name.localeCompare(b.name));
+
     return (
         <div className="space-y-6">
             <h2 className="text-2xl font-bold">Central Stock Management (Plant)</h2>
@@ -253,24 +237,24 @@ const CentralStockPage: React.FC = () => {
                     <XCircle /> {error}
                 </div>
             )}
-            
+
             <div className="border-b border-border">
                 <nav className="-mb-px flex space-x-6" aria-label="Tabs">
-                    <button onClick={() => setActiveTab('overview')} className={`flex items-center gap-2 py-3 px-1 border-b-2 font-medium text-sm ${activeTab === 'overview' ? 'border-primary text-primary' : 'border-transparent text-contentSecondary hover:text-content hover:border-slate-300'}`}><Layers size={16}/> Overview & Actions</button>
-                    <button onClick={() => setActiveTab('ledger')} className={`flex items-center gap-2 py-3 px-1 border-b-2 font-medium text-sm ${activeTab === 'ledger' ? 'border-primary text-primary' : 'border-transparent text-contentSecondary hover:text-content hover:border-slate-300'}`}><History size={16}/> Full Ledger</button>
+                    <button onClick={() => setActiveTab('overview')} className={`flex items-center gap-2 py-3 px-1 border-b-2 font-medium text-sm ${activeTab === 'overview' ? 'border-primary text-primary' : 'border-transparent text-contentSecondary hover:text-content hover:border-slate-300'}`}><Layers size={16} /> Overview & Actions</button>
+                    <button onClick={() => setActiveTab('ledger')} className={`flex items-center gap-2 py-3 px-1 border-b-2 font-medium text-sm ${activeTab === 'ledger' ? 'border-primary text-primary' : 'border-transparent text-contentSecondary hover:text-content hover:border-slate-300'}`}><History size={16} /> Full Ledger</button>
                 </nav>
             </div>
-            
+
             {activeTab === 'overview' && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                     <Card>
                         <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold flex items-center gap-2"><Package/> Current Plant Inventory</h3>
-                            <Button onClick={handleExportStockCsv} variant="secondary" size="sm" disabled={sortedStock.length === 0}><Download size={14}/> Export CSV</Button>
+                            <h3 className="text-lg font-semibold flex items-center gap-2"><Package /> Current Plant Inventory</h3>
+                            <Button onClick={handleExportStockCsv} variant="secondary" size="sm" disabled={sortedStock.length === 0}><Download size={14} /> Export CSV</Button>
                         </div>
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar">
                             <table className="w-full text-sm">
-                                <thead className="bg-slate-100">
+                                <thead className="bg-slate-100 sticky top-0 z-10">
                                     <tr>
                                         <SortableTableHeader label="Product Name" sortKey="skuName" requestSort={requestStockSort} sortConfig={stockSortConfig} />
                                         <SortableTableHeader label="On Hand" sortKey="quantity" requestSort={requestStockSort} sortConfig={stockSortConfig} className="text-right" />
@@ -295,31 +279,59 @@ const CentralStockPage: React.FC = () => {
                     </Card>
 
                     <Card>
-                         <h3 className="text-lg font-semibold mb-4">Add New Production</h3>
-                         <div className="space-y-3">
-                            {productionItems.map((item, index) => (
-                                <div key={item.id} className="grid grid-cols-12 gap-2 items-start p-2 rounded-md bg-slate-50 border">
-                                    <div className="col-span-12 sm:col-span-7">
-                                        <Select value={item.skuId} onChange={(e) => handleItemChange(item.id, 'skuId', e.target.value)} label={index === 0 ? "Product" : undefined}>
-                                            {skus.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                        </Select>
-                                    </div>
-                                    <div className="col-span-8 sm:col-span-4">
-                                        <Input type="number" value={item.quantity} onChange={(e) => handleItemChange(item.id, 'quantity', e.target.value)} placeholder="0" label={index === 0 ? "Quantity" : undefined} min="1"/>
-                                    </div>
-                                    <div className="col-span-4 sm:col-span-1 text-right self-center pt-6">
-                                        {productionItems.length > 1 && <Button onClick={() => handleRemoveItem(item.id)} variant="secondary" size="sm" className="p-2" title="Remove Item"><Trash2 size={16} className="text-red-500"/></Button>}
-                                    </div>
-                                </div>
-                            ))}
-                         </div>
-                         <div className="mt-4 flex flex-col sm:flex-row gap-4">
-                            <Button onClick={handleAddItem} variant="secondary" size="sm"><PlusCircle size={14}/> Add Another Product</Button>
-                         </div>
-                         <div className="mt-6 border-t pt-4">
-                            <Button onClick={handleAddProduction} isLoading={isSubmitting} disabled={isSubmitting}><Save size={16}/> Add Production to Stock</Button>
-                         </div>
-                         {statusMessage && (
+                        <h3 className="text-lg font-semibold mb-4">Add New Production (Bulk Entry)</h3>
+                        <div className="text-sm text-contentSecondary mb-4">
+                            Enter the quantity produced for each product below. You can leave fields empty if no production occurred for that product.
+                        </div>
+
+                        <div className="overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar border rounded-lg">
+                            <table className="w-full text-sm">
+                                <thead className="bg-slate-100 sticky top-0 z-10">
+                                    <tr>
+                                        <th className="p-3 text-left font-semibold text-contentSecondary">Product</th>
+                                        <th className="p-3 text-right font-semibold text-contentSecondary">Current Stock</th>
+                                        <th className="p-3 text-right font-semibold text-contentSecondary w-32">Add Qty</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {sortedSkusForEntry.map(sku => {
+                                        const currentStock = stock.find(s => s.skuId === sku.id)?.quantity || 0;
+                                        const qtyValue = productionQuantities[sku.id] || '';
+
+                                        return (
+                                            <tr key={sku.id} className={`border-b last:border-0 ${qtyValue ? 'bg-blue-50/50' : 'hover:bg-slate-50'}`}>
+                                                <td className="p-3 font-medium">
+                                                    {sku.name}
+                                                    <div className="text-xs text-contentSecondary">{sku.category} • {sku.unitSize}ml</div>
+                                                </td>
+                                                <td className="p-3 text-right text-contentSecondary">
+                                                    {formatIndianNumber(currentStock)}
+                                                </td>
+                                                <td className="p-2 text-right">
+                                                    <Input
+                                                        type="number"
+                                                        value={qtyValue}
+                                                        onChange={(e) => handleQuantityChange(sku.id, e.target.value)}
+                                                        placeholder="0"
+                                                        className={`text-right ${qtyValue ? 'border-primary font-bold' : ''}`}
+                                                        min="0"
+                                                    />
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="mt-6 border-t pt-4 flex justify-between items-center">
+                            <div className="text-sm font-medium">
+                                Total Items: <span className="text-primary">{Object.values(productionQuantities).filter(q => parseInt(q) > 0).length}</span>
+                            </div>
+                            <Button onClick={handleAddProduction} isLoading={isSubmitting} disabled={isSubmitting}><Save size={16} /> Save All Production</Button>
+                        </div>
+
+                        {statusMessage && (
                             <div className={`mt-4 flex items-center gap-2 text-sm p-3 rounded-lg ${statusMessage.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                 {statusMessage.type === 'success' ? <CheckCircle /> : <XCircle />} {statusMessage.text}
                             </div>
@@ -327,14 +339,14 @@ const CentralStockPage: React.FC = () => {
                     </Card>
                 </div>
             )}
-            
+
             {activeTab === 'ledger' && (
                 <Card>
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-semibold">Plant Stock Ledger</h3>
-                        <Button onClick={handleExportLedgerCsv} variant="secondary" size="sm" disabled={sortedLedger.length === 0}><Download size={14}/> Export CSV</Button>
+                        <Button onClick={handleExportLedgerCsv} variant="secondary" size="sm" disabled={sortedLedger.length === 0}><Download size={14} /> Export CSV</Button>
                     </div>
-                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end p-4 border-b border-border mb-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end p-4 border-b border-border mb-4">
                         <DateRangePicker label="Filter by Date" value={ledgerDateRange} onChange={setLedgerDateRange} />
                         <Select label="Filter by Product" value={ledgerSkuFilter} onChange={e => setLedgerSkuFilter(e.target.value)}>
                             <option value="all">All Products</option>
@@ -342,12 +354,12 @@ const CentralStockPage: React.FC = () => {
                         </Select>
                         <Select label="Filter by Type" value={ledgerTypeFilter} onChange={e => setLedgerTypeFilter(e.target.value)}>
                             <option value="all">All Movement Types</option>
-                            {Object.values(StockMovementType).map(type => 
+                            {Object.values(StockMovementType).map(type =>
                                 <option key={type} value={type}>{type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>
                             )}
                         </Select>
-                     </div>
-                     <div className="p-4 border-b border-border">
+                    </div>
+                    <div className="p-4 border-b border-border">
                         <h4 className="text-md font-semibold mb-2 flex items-center gap-2"><BarChart2 size={18} /> Summary for Selected Period</h4>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                             <SummaryCard title="Units Produced" value={ledgerSummary.produced} />
@@ -356,7 +368,7 @@ const CentralStockPage: React.FC = () => {
                             <SummaryCard title="Units Damaged" value={ledgerSummary.damaged} />
                         </div>
                     </div>
-                     <div className="overflow-x-auto">
+                    <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead className="bg-slate-100">
                                 <tr>

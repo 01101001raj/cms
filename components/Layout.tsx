@@ -4,7 +4,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { UserRole } from '../types';
 import {
-  Settings, LogOut, Menu, X, Home, Building2
+    Settings, LogOut, Menu, X, Home, Building2
 } from 'lucide-react';
 import NotificationDropdown from './common/NotificationDropdown';
 import RefreshPermissions from './RefreshPermissions';
@@ -12,58 +12,92 @@ import { menuItems } from '../constants';
 
 const Sidebar: React.FC<{ isOpen: boolean; closeSidebar: () => void; }> = ({ isOpen, closeSidebar }) => {
     const { currentUser, portal } = useAuth();
-    const activeClassName = "bg-primary/10 text-primary border-r-4 border-primary";
-    const inactiveClassName = "text-contentSecondary hover:bg-slate-100";
+
+    // Modern Sidebar Styles - Premium Dark Theme
+    const activeClassName = "bg-white/10 text-white shadow-lg backdrop-blur-sm border-r-4 border-primary";
+    const inactiveClassName = "text-slate-400 hover:text-white hover:bg-white/5";
 
     const renderLink = (link: any) => {
-        if (!currentUser?.permissions) {
-            console.log(`[Layout] No permissions found for user`);
-            return null;
-        }
-
-        // If a portal type is specified for the link, check it matches the current portal
+        if (!currentUser?.permissions) return null;
         if (link.portal && portal?.type !== link.portal) return null;
-
-        const hasAccess = currentUser.permissions.includes(link.path);
-
-        // Debug logging for Customer Statement
-        if (link.path === '/customer-statement') {
-            console.log(`[Layout] Customer Statement permission check:`, {
-                hasAccess,
-                userPermissions: currentUser.permissions,
-                linkPath: link.path
-            });
-        }
-
-        if (!hasAccess) return null;
-
+        if (!currentUser.permissions.includes(link.path)) return null;
 
         return (
             <NavLink
                 key={link.name}
                 to={link.path}
                 onClick={closeSidebar}
-                className={({ isActive }) => `flex items-center px-4 py-3 text-sm font-medium transition-colors ${isActive ? activeClassName : inactiveClassName}`}
+                className={({ isActive }) => `
+                    group flex items-center px-4 py-3 mx-3 my-1 rounded-xl text-[0.9rem] font-medium transition-all duration-300 ease-out
+                    ${isActive ? activeClassName : inactiveClassName}
+                `}
             >
-                <link.icon size={18} className="mr-3" />
-                {link.name}
+                {({ isActive }) => (
+                    <>
+                        <link.icon
+                            size={20}
+                            strokeWidth={isActive ? 2 : 1.5}
+                            className={`mr-3 transition-colors duration-300 ${isActive ? 'text-primaryLight drop-shadow-md' : 'text-slate-500 group-hover:text-white'}`}
+                        />
+                        <span className="tracking-wide">{link.name}</span>
+                        {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primaryLight shadow-[0_0_8px_rgba(224,231,255,0.6)]" />}
+                    </>
+                )}
             </NavLink>
         );
     };
 
     return (
-        <aside className={`fixed top-0 left-0 z-40 w-64 h-screen bg-card border-r border-border transition-transform md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
-            <div className="flex items-center justify-between h-16 px-4 border-b flex-shrink-0">
-                <h1 className="text-xl font-bold text-primary">Distributor Portal</h1>
-                <button onClick={closeSidebar} className="md:hidden p-1">
+        <aside className={`
+            fixed top-0 left-0 z-40 w-72 h-screen 
+            bg-[#0f172a] 
+            border-r border-slate-800
+            transition-transform duration-300 ease-out 
+            md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'} 
+            flex flex-col shadow-2xl
+        `}>
+            {/* Sidebar Header */}
+            <div className="flex flex-col justify-center h-auto py-6 px-8 border-b border-slate-800/50 bg-slate-900/50">
+                <div className="flex items-center gap-3">
+                    <div className="flex flex-col items-start">
+                        <img src="/nrich_logo.png" alt="NRICH Logo" className="h-20 w-auto object-contain mb-1" />
+                        <span className="text-[10px] text-slate-500 font-semibold tracking-widest uppercase ml-1">Enterprise Edition</span>
+                    </div>
+                </div>
+                <button onClick={closeSidebar} className="md:hidden absolute top-6 right-6 p-2 text-slate-400 hover:text-white transition-colors">
                     <X size={20} />
                 </button>
             </div>
-            <nav className="flex-1 overflow-y-auto py-4">
-                {menuItems.filter(l => l.group === 'main').map(renderLink)}
-                <div className="px-4 mt-4 mb-2 text-xs font-semibold uppercase text-contentSecondary">Management</div>
-                {menuItems.filter(l => l.group === 'management').map(renderLink)}
+
+            {/* Scrollable Nav */}
+            <nav className="flex-1 overflow-y-auto py-6 space-y-8 custom-scrollbar scroll-smooth">
+                <div>
+                    <div className="px-7 mb-4 text-[11px] font-bold uppercase tracking-widest text-slate-500">Main Menu</div>
+                    <div className="space-y-0.5">
+                        {menuItems.filter(l => l.group === 'main').map(renderLink)}
+                    </div>
+                </div>
+
+                <div>
+                    <div className="px-7 mb-4 text-[11px] font-bold uppercase tracking-widest text-slate-500">Management & Settings</div>
+                    <div className="space-y-0.5">
+                        {menuItems.filter(l => l.group === 'management').map(renderLink)}
+                    </div>
+                </div>
             </nav>
+
+            {/* Sidebar Footer */}
+            <div className="p-6 border-t border-slate-800/50 bg-slate-900/30">
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/50 border border-slate-700/50">
+                    <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-300">
+                        {currentUser?.username.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                        <span className="text-sm font-medium text-slate-200 truncate">{currentUser?.username}</span>
+                        <span className="text-[10px] text-slate-500 truncate capitalize">{currentUser?.role?.replace('_', ' ').toLowerCase()}</span>
+                    </div>
+                </div>
+            </div>
         </aside>
     );
 };
@@ -76,7 +110,7 @@ const Header: React.FC<{ openSidebar: () => void; }> = ({ openSidebar }) => {
         await logout();
         navigate('/login');
     };
-    
+
     const handlePortalChange = () => {
         setPortal(null);
         navigate('/select-portal');
@@ -91,7 +125,7 @@ const Header: React.FC<{ openSidebar: () => void; }> = ({ openSidebar }) => {
                 <div className="hidden md:block">
                     {portal && (
                         <div className="flex items-center gap-2 p-2 rounded-lg bg-background border border-border text-sm">
-                            {portal.type === 'plant' ? <Home size={16} className="text-primary"/> : <Building2 size={16} className="text-primary"/>}
+                            {portal.type === 'plant' ? <Home size={16} className="text-primary" /> : <Building2 size={16} className="text-primary" />}
                             <span className="font-semibold">{portal.name}</span>
                             {currentUser?.role === UserRole.PLANT_ADMIN && (
                                 <button onClick={handlePortalChange} className="text-xs text-primary hover:underline ml-2"> (change)</button>
@@ -130,15 +164,21 @@ const Layout: React.FC = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     return (
-        <div className="flex min-h-screen">
-            <Sidebar isOpen={isSidebarOpen} closeSidebar={() => setIsSidebarOpen(false)} />
-            <div className="flex-1 flex flex-col md:ml-64">
-                <Header openSidebar={() => setIsSidebarOpen(true)} />
-                <main className="flex-1 p-4 md:p-6 bg-background">
-                    <Outlet />
+        <div className="flex min-h-screen bg-background font-sans text-content selection:bg-primary/20">
+            <div className="print:hidden">
+                <Sidebar isOpen={isSidebarOpen} closeSidebar={() => setIsSidebarOpen(false)} />
+            </div>
+
+            <div className={`flex-1 flex flex-col min-w-0 md:pl-72 transition-all duration-300 print:pl-0`}>
+                <div className="print:hidden">
+                    <Header openSidebar={() => setIsSidebarOpen(true)} />
+                </div>
+                <main className="flex-1 p-4 md:p-8 overflow-x-hidden print:p-0 print:overflow-visible">
+                    <div className="page-container animate-fade-in print:w-full print:max-w-none">
+                        <Outlet />
+                    </div>
                 </main>
             </div>
-            <RefreshPermissions />
         </div>
     );
 };

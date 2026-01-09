@@ -9,8 +9,9 @@ import Button from './common/Button';
 import Select from './common/Select';
 import { useAuth } from '../hooks/useAuth';
 import { CheckCircle, XCircle, ArrowLeft } from 'lucide-react';
+import { INDIAN_LOCATIONS } from '../utils/addressData';
 
-type FormInputs = Omit<Distributor, 'id' | 'walletBalance' | 'dateAdded'> & { 
+type FormInputs = Omit<Distributor, 'id' | 'walletBalance' | 'dateAdded'> & {
     hasGstin: boolean;
     createInitialScheme: boolean;
     scheme_description?: string;
@@ -38,6 +39,10 @@ const DistributorOnboarding: React.FC = () => {
     const [stores, setStores] = useState<Store[]>([]);
     const [priceTiers, setPriceTiers] = useState<PriceTier[]>([]);
     const [skus, setSkus] = useState<SKU[]>([]);
+    const [distributorCount, setDistributorCount] = useState<number | null>(null);
+
+    // Calculate next agent code: (current count + 1) + 550
+    const nextAgentCode = distributorCount !== null ? (distributorCount + 1 + 550).toString() : null;
 
     const hasGstin = watch("hasGstin");
     const hasSpecialSchemes = watch("hasSpecialSchemes");
@@ -47,17 +52,28 @@ const DistributorOnboarding: React.FC = () => {
     useEffect(() => {
         api.getUsers(null).then(setUsers);
         api.getSKUs().then(setSkus);
+        // Fetch distributors to calculate next agent code
+        api.getDistributors(portal).then(distributors => {
+            setDistributorCount(distributors.length);
+        });
         if (currentUser?.role === UserRole.PLANT_ADMIN) {
             api.getStores().then(setStores);
             api.getPriceTiers().then(setPriceTiers);
         }
     }, [portal, currentUser?.role]);
-    
+
     useEffect(() => {
         if (portal?.type === 'store') {
             setValue('storeId', portal.id);
         }
     }, [portal, setValue]);
+
+    // Set the agentCode when calculated
+    useEffect(() => {
+        if (nextAgentCode) {
+            setValue('agentCode', nextAgentCode);
+        }
+    }, [nextAgentCode, setValue]);
 
     useEffect(() => {
         if (hasGstin) {
@@ -86,18 +102,18 @@ const DistributorOnboarding: React.FC = () => {
         }
         return users.filter(u => u.role === UserRole.EXECUTIVE && u.asmId === selectedAsm.id);
     }, [users, watchedAsmName]);
-    
+
     const handleDurationChange = (duration: '3m' | '6m' | '1y') => {
         const today = new Date();
         const startDate = today.toISOString().split('T')[0];
         const endDate = new Date(today);
-        
-        switch(duration) {
+
+        switch (duration) {
             case '3m': endDate.setMonth(endDate.getMonth() + 3); break;
             case '6m': endDate.setMonth(endDate.getMonth() + 6); break;
             case '1y': endDate.setFullYear(endDate.getFullYear() + 1); break;
         }
-        
+
         setValue('scheme_startDate', startDate, { shouldValidate: true, shouldDirty: true });
         setValue('scheme_endDate', endDate.toISOString().split('T')[0], { shouldValidate: true, shouldDirty: true });
     };
@@ -135,15 +151,15 @@ const DistributorOnboarding: React.FC = () => {
 
             let initialScheme;
             if (createInitialScheme && scheme_description) {
-              initialScheme = {
-                description: scheme_description,
-                buySkuId: scheme_buySkuId!,
-                buyQuantity: Number(scheme_buyQuantity),
-                getSkuId: scheme_getSkuId!,
-                getQuantity: Number(scheme_getQuantity),
-                startDate: scheme_startDate!,
-                endDate: scheme_endDate!,
-              };
+                initialScheme = {
+                    description: scheme_description,
+                    buySkuId: scheme_buySkuId!,
+                    buyQuantity: Number(scheme_buyQuantity),
+                    getSkuId: scheme_getSkuId!,
+                    getQuantity: Number(scheme_getQuantity),
+                    startDate: scheme_startDate!,
+                    endDate: scheme_endDate!,
+                };
             }
 
             const newDistributor = await api.addDistributor(distributorData, portal, initialScheme);
@@ -165,7 +181,7 @@ const DistributorOnboarding: React.FC = () => {
 
     return (
         <Card className="max-w-3xl mx-auto">
-             <div className="flex items-center mb-6">
+            <div className="flex items-center mb-6">
                 <Button onClick={() => navigate(-1)} variant="secondary" size="sm" className="mr-4">
                     <ArrowLeft size={16} />
                 </Button>
@@ -173,21 +189,58 @@ const DistributorOnboarding: React.FC = () => {
             </div>
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                {/* Auto-generated Agent Code Display */}
+                {nextAgentCode && (
+                    <div className="bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-xl p-4 mb-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-primary">Next Agent Code</p>
+                                <p className="text-3xl font-bold text-gray-900 font-mono">{nextAgentCode}</p>
+                            </div>
+                            <div className="text-right text-xs text-slate-500">
+                                <p>Current distributors: {distributorCount}</p>
+                                <p>Formula: ({distributorCount} + 1) + 550</p>
+                            </div>
+                        </div>
+                        <input type="hidden" {...register('agentCode')} value={nextAgentCode} />
+                    </div>
+                )}
+
                 <div className="border-b border-border pb-6 space-y-4">
                     <h3 className="text-lg font-medium text-content">Basic Information</h3>
                     <Input label="Firm Name" {...register('name', { required: 'Firm name is required' })} error={errors.name?.message} />
                     <Input label="Phone Number" type="tel" {...register('phone', { required: 'Phone number is required' })} error={errors.phone?.message} />
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Input label="State" {...register('state', { required: 'State is required' })} error={errors.state?.message} />
-                        <Input label="Area / City" {...register('area', { required: 'Area is required' })} error={errors.area?.message} />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Select
+                            label="State"
+                            {...register('state', { required: 'State is required' })}
+                            error={errors.state?.message}
+                        >
+                            <option value="">Select State</option>
+                            {Object.keys(INDIAN_LOCATIONS).map(state => (
+                                <option key={state} value={state}>{state}</option>
+                            ))}
+                        </Select>
+
+                        <Select
+                            label="Area / City"
+                            {...register('area', { required: 'Area is required' })}
+                            error={errors.area?.message}
+                            disabled={!watch('state')}
+                        >
+                            <option value="">Select Area</option>
+                            {watch('state') && INDIAN_LOCATIONS[watch('state')]?.map(district => (
+                                <option key={district} value={district}>{district}</option>
+                            ))}
+                        </Select>
                     </div>
-                     <textarea
+                    <textarea
                         {...register('billingAddress', { required: 'Billing address is required' })}
                         rows={3}
                         className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 transition bg-slate-50 text-sm text-content border-border focus:border-primary focus:bg-white"
                         placeholder="Billing Address"
                     />
-                     {errors.billingAddress && <p className="mt-1 text-xs text-red-600">{errors.billingAddress.message}</p>}
+                    {errors.billingAddress && <p className="mt-1 text-xs text-red-600">{errors.billingAddress.message}</p>}
                 </div>
 
                 <div className="space-y-4">
@@ -198,11 +251,11 @@ const DistributorOnboarding: React.FC = () => {
                         {...register('creditLimit', { required: 'Credit limit is required', valueAsNumber: true })}
                         error={errors.creditLimit?.message}
                     />
-                    
+
                     <div>
                         <Input
                             label="GSTIN"
-                            {...register('gstin', { 
+                            {...register('gstin', {
                                 required: hasGstin ? 'GSTIN is required' : false,
                                 pattern: hasGstin ? {
                                     value: /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
@@ -238,13 +291,13 @@ const DistributorOnboarding: React.FC = () => {
                                 <option value="">None (Plant-level)</option>
                                 {stores.map(store => <option key={store.id} value={store.id}>{store.name}</option>)}
                             </Select>
-                             <Select label="Assign Price Tier" {...register('priceTierId')}>
+                            <Select label="Assign Price Tier" {...register('priceTierId')}>
                                 <option value="">Default Pricing</option>
                                 {priceTiers.map(tier => <option key={tier.id} value={tier.id}>{tier.name}</option>)}
                             </Select>
                         </div>
                     )}
-                    
+
                     <div className="flex items-center mt-4">
                         <input type="checkbox" id="hasSpecialSchemes" {...register('hasSpecialSchemes')} className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary" />
                         <label htmlFor="hasSpecialSchemes" className="ml-2 block text-sm text-contentSecondary">Enable Distributor-Specific Schemes</label>
@@ -264,7 +317,7 @@ const DistributorOnboarding: React.FC = () => {
                                             <p className="font-semibold text-sm mb-1">Condition (Buy)</p>
                                             <div className="flex flex-col sm:flex-row gap-2"><Input label="Qty" type="number" {...register('scheme_buyQuantity', { required: createInitialScheme, valueAsNumber: true, min: 1 })} error={errors.scheme_buyQuantity?.message} /><Select label="Product" {...register('scheme_buySkuId', { required: createInitialScheme })}>{skus.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</Select></div>
                                         </div>
-                                         <div className="p-2 border rounded-md bg-green-50">
+                                        <div className="p-2 border rounded-md bg-green-50">
                                             <p className="font-semibold text-sm mb-1">Reward (Get)</p>
                                             <div className="flex flex-col sm:flex-row gap-2"><Input label="Qty" type="number" {...register('scheme_getQuantity', { required: createInitialScheme, valueAsNumber: true, min: 1 })} error={errors.scheme_getQuantity?.message} /><Select label="Product" {...register('scheme_getSkuId', { required: createInitialScheme })}>{skus.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</Select></div>
                                         </div>
@@ -286,13 +339,13 @@ const DistributorOnboarding: React.FC = () => {
                         </div>
                     )}
                 </div>
-                
+
                 <div className="flex justify-end pt-4">
                     <Button type="submit" isLoading={isLoading} disabled={!isValid}>
                         Onboard Distributor
                     </Button>
                 </div>
-                
+
                 {statusMessage && (
                     <div className={`flex items-center p-3 rounded-md mt-4 text-sm ${statusMessage.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                         {statusMessage.type === 'success' ? <CheckCircle className="mr-2" /> : <XCircle className="mr-2" />}

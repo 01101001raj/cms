@@ -33,10 +33,12 @@ async def get_distributors(
         query = supabase.table("distributors").select("*")
 
         if portal_type == "store" and portal_id:
-            query = query.eq("storeId", portal_id)
+            query = query.eq("store_id", portal_id)
 
         response = query.execute()
-        return response.data
+        # Convert through Pydantic model to ensure proper camelCase serialization
+        distributors = [Distributor(**dist) for dist in response.data]
+        return distributors
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

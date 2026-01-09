@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import List, Optional
-from app.models.schemas import WalletTransaction, WalletRecharge
+from app.models.schemas import WalletTransaction, WalletRecharge, JournalVoucher
 from app.core.supabase import get_supabase_client, get_supabase_admin_client
 from supabase import Client
 from datetime import datetime
@@ -137,6 +137,96 @@ async def recharge_wallet(
         return {"message": "Wallet recharged successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/journal-voucher")
+async def record_journal_voucher(
+    jv: JournalVoucher,
+    supabase: Client = Depends(get_supabase_admin_client)
+):
+    """
+    Record a journal voucher (manual adjustment) for distributor or store wallet
+    Amount can be positive (credit/addition) or negative (debit/deduction)
+    """
+    try:
+        if jv.distributorId:
+            # Record JV for distributor wallet
+            distributor = supabase.table("distributors").select("wallet_balance").eq("id", jv.distributorId).single().execute()
+            if not distributor.data:
+                raise HTTPException(status_code=404, detail="Distributor not found")
+
+            # First, insert the new JV transaction
+            supabase.table("wallet_transactions").insert({
+                "distributor_id": jv.distributorId,
+                "date": jv.date,
+                "type": "JOURNAL_VOUCHER",
+                "amount": jv.amount,  # Can be positive or negative
+                "balance_after": 0,  # Temporary, will recalculate
+                "payment_method": None,  # JV doesn't have payment method
+                "remarks": jv.remarks,
+                "initiated_by": jv.username
+            }).execute()
+
+            # Get ALL transactions for this distributor in chronological order
+            all_txs = supabase.table("wallet_transactions")\
+                .select("*")\
+                .eq("distributor_id", jv.distributorId)\
+                .order("date", desc=False)\
+                .execute()
+
+            # Recalculate balances for all transactions in chronological order
+            running_balance = 0.0
+            for tx in all_txs.data:
+                running_balance += tx["amount"]
+                supabase.table("wallet_transactions")\
+                    .update({"balance_after": running_balance})\
+                    .eq("id", tx["id"])\
+                    .execute()
+
+            # Update the distributor's current wallet balance
+            supabase.table("distributors").update({"wallet_balance": running_balance}).eq("id", jv.distributorId).execute()
+
+        elif jv.storeId:
+            # Record JV for store wallet
+            store = supabase.table("stores").select("wallet_balance").eq("id", jv.storeId).single().execute()
+            if not store.data:
+                raise HTTPException(status_code=404, detail="Store not found")
+
+            # First, insert the new JV transaction
+            supabase.table("wallet_transactions").insert({
+                "store_id": jv.storeId,
+                "date": jv.date,
+                "type": "JOURNAL_VOUCHER",
+                "amount": jv.amount,  # Can be positive or negative
+                "balance_after": 0,  # Temporary, will recalculate
+                "payment_method": None,  # JV doesn't have payment method
+                "remarks": jv.remarks,
+                "initiated_by": jv.username
+            }).execute()
+
+            # Get ALL transactions for this store in chronological order
+            all_txs = supabase.table("wallet_transactions")\
+                .select("*")\
+                .eq("store_id", jv.storeId)\
+                .order("date", desc=False)\
+                .execute()
+
+            # Recalculate balances for all transactions in chronological order
+            running_balance = 0.0
+            for tx in all_txs.data:
+                running_balance += tx["amount"]
+                supabase.table("wallet_transactions")\
+                    .update({"balance_after": running_balance})\
+                    .eq("id", tx["id"])\
+                    .execute()
+
+            # Update the store's current wallet balance
+            supabase.table("stores").update({"wallet_balance": running_balance}).eq("id", jv.storeId).execute()
+
+        return {"message": "Journal voucher recorded successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @router.post("/recalculate/{account_type}/{account_id}")

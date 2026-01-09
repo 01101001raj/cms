@@ -3,7 +3,7 @@ import { api } from '../services/api';
 import { Order, Distributor, OrderStatus, OrderItem, SKU, Scheme, User, UserRole } from '../types';
 import Card from './common/Card';
 import Select from './common/Select';
-import { DollarSign, Package, Gift, Download, BarChart, Table, Wallet, ChevronDown, ChevronRight } from 'lucide-react';
+import { DollarSign, Package, Gift, Download, BarChart, Table, Wallet, ChevronDown, ChevronRight, X, Trophy } from 'lucide-react';
 import DateRangePicker from './common/DateRangePicker';
 import Button from './common/Button';
 import { formatIndianCurrency, formatIndianNumber, formatDateDDMMYYYY } from '../utils/formatting';
@@ -12,6 +12,7 @@ import SortableTableHeader from './common/SortableTableHeader';
 import { useAuth } from '../hooks/useAuth';
 import SalesCharts from './SalesCharts';
 import { useNavigate } from 'react-router-dom';
+import SalesMap from './SalesMap';
 
 interface StatCardProps {
     title: string;
@@ -22,12 +23,12 @@ interface StatCardProps {
 
 // FIX: Added a specific type for the dynamically created distributor sales rows to ensure type safety.
 interface DistributorSaleRow {
-  distributorId: string;
-  distributorName: string;
-  walletBalance: number;
-  frequency: number;
-  totalWithGst: number;
-  [productKey: string]: number | string; // For dynamic product columns
+    distributorId: string;
+    distributorName: string;
+    walletBalance: number;
+    frequency: number;
+    totalWithGst: number;
+    [productKey: string]: number | string; // For dynamic product columns
 }
 
 const StatCard: React.FC<StatCardProps> = React.memo(({ title, value, icon, iconBgClass }) => (
@@ -48,14 +49,14 @@ const StatCard: React.FC<StatCardProps> = React.memo(({ title, value, icon, icon
 const SalesPage: React.FC = () => {
     const { portal } = useAuth();
     const navigate = useNavigate();
-    
+
     const [orders, setOrders] = useState<Order[]>([]);
     const [allOrderItems, setAllOrderItems] = useState<OrderItem[]>([]);
     const [distributors, setDistributors] = useState<Distributor[]>([]);
     const [skus, setSkus] = useState<SKU[]>([]);
     const [schemes, setSchemes] = useState<Scheme[]>([]);
     const [loading, setLoading] = useState(true);
-    
+
     const getInitialDateRange = () => {
         const to = new Date();
         const from = new Date(to.getFullYear(), to.getMonth(), 1);
@@ -65,7 +66,7 @@ const SalesPage: React.FC = () => {
     };
 
     const [dateRange, setDateRange] = useState<{ from: Date | null; to: Date | null }>(getInitialDateRange());
-    
+
     const [selectedDistributorId, setSelectedDistributorId] = useState<string>('all');
     const [selectedAsmName, setSelectedAsmName] = useState<string>('all');
     const [selectedState, setSelectedState] = useState<string>('all');
@@ -76,6 +77,7 @@ const SalesPage: React.FC = () => {
     const [chartGranularity, setChartGranularity] = useState<'daily' | 'monthly' | 'quarterly' | 'yearly'>('daily');
     const [expandedDistributor, setExpandedDistributor] = useState<string | null>(null);
     const [showAov, setShowAov] = useState<boolean>(false);
+    const [selectedDistrictForModal, setSelectedDistrictForModal] = useState<{ state: string; district: string } | null>(null);
 
 
     useEffect(() => {
@@ -113,7 +115,7 @@ const SalesPage: React.FC = () => {
     }, [distributors, selectedAsmName]);
 
     const availableAreas = useMemo(() => {
-        const relevantDistributors = distributors.filter(d => 
+        const relevantDistributors = distributors.filter(d =>
             (selectedAsmName === 'all' || d.asmName === selectedAsmName) &&
             (selectedState === 'all' || d.state === selectedState)
         );
@@ -124,7 +126,7 @@ const SalesPage: React.FC = () => {
         setSelectedState(e.target.value);
         setSelectedArea('all');
     };
-    
+
     const handleAsmChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         setSelectedAsmName(e.target.value);
         setSelectedDistributorId('all');
@@ -163,11 +165,11 @@ const SalesPage: React.FC = () => {
         start.setHours(0, 0, 0, 0);
         const end = to;
         end.setHours(23, 59, 59, 999);
-        
+
         const itemsFilteredByProduct = selectedSkuId === 'all'
             ? allOrderItems
             : allOrderItems.filter(item => item.skuId === selectedSkuId);
-        
+
         const orderIdsWithSelectedProduct = new Set(itemsFilteredByProduct.map(item => item.orderId));
 
         const filteredDistributorIds = new Set(
@@ -182,10 +184,10 @@ const SalesPage: React.FC = () => {
 
         const filteredOrders = orders.filter(order => {
             if (order.status !== OrderStatus.DELIVERED) return false;
-            
+
             const orderDate = new Date(order.date);
             if (!(orderDate >= start && orderDate <= end)) return false;
-            
+
             if (!filteredDistributorIds.has(order.distributorId)) return false;
 
             if (selectedDistributorId !== 'all' && order.distributorId !== selectedDistributorId) return false;
@@ -199,29 +201,29 @@ const SalesPage: React.FC = () => {
                 const buySkuQuantity = orderItemsForThisOrder
                     .filter(i => i.skuId === selectedScheme.buySkuId)
                     .reduce((sum, item) => sum + item.quantity, 0);
-                
+
                 if (buySkuQuantity < selectedScheme.buyQuantity) {
                     return false;
                 }
             }
-            
+
             return true;
         });
-        
+
         const filteredOrderIds = new Set(filteredOrders.map(o => o.id));
         const filteredOrderItems = itemsFilteredByProduct.filter(item => filteredOrderIds.has(item.orderId));
-        
+
         // FIX: Map the full SKU object to use its properties later, ensuring type safety.
         const skuMap = new Map<string, SKU>(skus.map(s => [s.id, s]));
         const distributorMap = new Map<string, Distributor>(distributors.map(d => [d.id, d]));
 
         let totalPaidQty = 0;
         let totalFreeQty = 0;
-        
+
         const productSummary = new Map<string, { paid: number, free: number, salesValue: number }>();
         filteredOrderItems.forEach(item => {
             const sku = skuMap.get(item.skuId);
-            if(sku) {
+            if (sku) {
                 const skuName = sku.name;
                 const current = productSummary.get(skuName) || { paid: 0, free: 0, salesValue: 0 };
                 if (item.isFreebie) {
@@ -243,7 +245,7 @@ const SalesPage: React.FC = () => {
             total: data.paid + data.free,
             salesValue: data.salesValue,
         }));
-        
+
         const productColumns = [...new Set(
             filteredOrderItems
                 // FIX: Use the full SKU object from the map to access its name.
@@ -272,7 +274,7 @@ const SalesPage: React.FC = () => {
                 });
                 distributorSalesMap.set(distId, distData);
             }
-            
+
             distData.frequency += 1;
             distData.totalWithGst += order.totalAmount;
 
@@ -291,7 +293,7 @@ const SalesPage: React.FC = () => {
             });
         });
         const distributorSales: DistributorSaleRow[] = Array.from(distributorSalesMap.values());
-        
+
         // FIX: Explicitly type `salesTotals` to allow dynamic property assignment.
         const salesTotals: Record<string, any> = {
             frequency: 0,
@@ -308,7 +310,7 @@ const SalesPage: React.FC = () => {
         });
 
         const totalSalesValue = salesTotals.totalWithGst;
-        
+
         // --- Data for Charts ---
         const salesByDateAggregation = new Map<string, { sales: number; orderCount: number; quantity: number }>();
         const processedOrdersForTrend = new Set<string>();
@@ -341,13 +343,13 @@ const SalesPage: React.FC = () => {
             }
             const existing = salesByDateAggregation.get(key) || { sales: 0, orderCount: 0, quantity: 0 };
             existing.sales += order.totalAmount;
-            
+
             const orderKey = `${order.id}-${key}`;
-            if(!processedOrdersForTrend.has(orderKey)) {
+            if (!processedOrdersForTrend.has(orderKey)) {
                 existing.orderCount += 1;
                 processedOrdersForTrend.add(orderKey);
             }
-            
+
             const orderItemsForThisOrder = itemsByOrderId.get(order.id) || [];
             const orderQty = orderItemsForThisOrder
                 .filter(item => !item.isFreebie)
@@ -356,17 +358,17 @@ const SalesPage: React.FC = () => {
 
             salesByDateAggregation.set(key, existing);
         });
-        
+
         const salesTrendData = Array.from(salesByDateAggregation.entries())
             .map(([date, data]) => ({
-                 date, 
-                 sales: data.sales, 
-                 orderCount: data.orderCount,
-                 quantity: data.quantity,
-                 aov: data.orderCount > 0 ? data.sales / data.orderCount : 0,
+                date,
+                sales: data.sales,
+                orderCount: data.orderCount,
+                quantity: data.quantity,
+                aov: data.orderCount > 0 ? data.sales / data.orderCount : 0,
             }))
             .sort((a, b) => a.date.localeCompare(b.date));
-            
+
         const topProductsData = productSalesSummary.sort((a, b) => b.total - a.total);
 
         const salesByStateAndArea = new Map<string, { total: number; areas: Map<string, number> }>();
@@ -388,7 +390,7 @@ const SalesPage: React.FC = () => {
                 value: total,
                 areas: Array.from(areas.entries())
                     .map(([areaName, areaValue]) => ({ name: areaName, value: areaValue }))
-                    .sort((a,b) => b.value - a.value)
+                    .sort((a, b) => b.value - a.value)
             }))
             .sort((a, b) => b.value - a.value);
 
@@ -407,7 +409,7 @@ const SalesPage: React.FC = () => {
         const salesByAsm = new Map<string, { totalSales: number; totalQty: number; orderCount: number }>();
         filteredOrders.forEach(order => {
             const dist = distributorMap.get(order.distributorId);
-            if(dist?.asmName) {
+            if (dist?.asmName) {
                 const orderQty = allOrderItems
                     .filter(item => item.orderId === order.id && !item.isFreebie)
                     .reduce((sum, item) => sum + item.quantity, 0);
@@ -419,7 +421,7 @@ const SalesPage: React.FC = () => {
                 salesByAsm.set(dist.asmName, current);
             }
         });
-        
+
         const salesByAsmData = Array.from(salesByAsm.entries())
             .map(([name, data]) => ({ name, value: data.totalSales, quantity: data.totalQty, orderCount: data.orderCount }))
             .sort((a, b) => b.value - a.value);
@@ -429,7 +431,7 @@ const SalesPage: React.FC = () => {
             const details = distributorDetailsMapForCharts.get(order.distributorId);
             if (details && details.asmName && details.executiveName) {
                 const { asmName, executiveName } = details;
-                 const orderQty = allOrderItems
+                const orderQty = allOrderItems
                     .filter(item => item.orderId === order.id && !item.isFreebie)
                     .reduce((sum, item) => sum + item.quantity, 0);
 
@@ -455,14 +457,127 @@ const SalesPage: React.FC = () => {
             });
             row._total = totalAsmSales;
             return row;
-        }).sort((a,b) => (b._total as number) - (a._total as number));
+        }).sort((a, b) => (b._total as number) - (a._total as number));
         salesByExecutiveChartData.forEach(row => delete row._total);
         const uniqueExecutives = Array.from(uniqueExecutivesSet).sort();
 
 
         return { totalSalesValue, distributorSales, totalPaidQty, totalFreeQty, productSalesSummary, salesTotals, productColumns, filteredOrders, filteredOrderItems, salesTrendData, topProductsData, salesByStateData, salesByDistributorData, salesByAsmData, salesByExecutiveChartData, uniqueExecutives };
     }, [orders, allOrderItems, distributors, skus, schemes, dateRange, selectedDistributorId, selectedState, selectedArea, selectedSchemeId, chartGranularity, selectedAsmName, selectedSkuId]);
-    
+
+    // Derived data for district modal
+    const districtModalData = useMemo(() => {
+        if (!selectedDistrictForModal) return [];
+
+        const { state, district } = selectedDistrictForModal;
+
+        // Find distributors in this state and district (area)
+        // Normalize for comparison
+        const normalize = (s: string) => s.toLowerCase().trim();
+        const targetState = normalize(state);
+        const targetDistrict = normalize(district);
+
+        const relevantDistributors = distributors.filter(d =>
+            // Try flexible matching for state and area/district
+            (normalize(d.state) === targetState || normalize(d.state).includes(targetState) || targetState.includes(normalize(d.state))) &&
+            (normalize(d.area) === targetDistrict || normalize(d.area).includes(targetDistrict) || targetDistrict.includes(normalize(d.area)))
+        );
+
+        const relevantDistributorIds = new Set(relevantDistributors.map(d => d.id));
+
+        // Use filteredOrders but restrict to these distributors
+        // We reuse salesData.filteredOrders to respect date range and other global filters if desired,
+        // or we could go back to raw 'orders' and just apply date range.
+        // Let's use filteredOrders to respect the date range selected by user.
+
+        const distSalesMap = new Map<string, number>();
+        const filteredItems = salesData.filteredOrderItems.filter(item => {
+            const order = salesData.filteredOrders.find(o => o.id === item.orderId);
+            if (!order) return false;
+            return relevantDistributorIds.has(order.distributorId);
+        });
+
+        // Sum up total units (paid + free) for each distributor
+        const distUnitsMap = new Map<string, number>();
+
+        filteredItems.forEach(item => {
+            const order = salesData.filteredOrders.find(o => o.id === item.orderId);
+            if (!order) return;
+
+            const current = distUnitsMap.get(order.distributorId) || 0;
+            distUnitsMap.set(order.distributorId, current + item.quantity);
+        });
+
+        return Array.from(distUnitsMap.entries())
+            .map(([distId, units]) => {
+                const dist = distributors.find(d => d.id === distId);
+                return {
+                    name: dist?.name || 'Unknown',
+                    units: units,
+                    agentCode: dist?.agentCode || 'N/A'
+                };
+            })
+            .sort((a, b) => b.units - a.units);
+
+    }, [selectedDistrictForModal, distributors, salesData.filteredOrderItems, salesData.filteredOrders]);
+
+    const handleDistrictClick = (stateName: string, districtName: string) => {
+        setSelectedDistrictForModal({ state: stateName, district: districtName });
+    };
+
+    // Calculate Top Performers for Map Sidebar
+    const topPerformers = useMemo(() => {
+        // National Top Performer
+        let nationalTop: { name: string; value: number; units: number; location: string } | null = null;
+        let maxNationalUnits = -1;
+
+        // State Top Performers
+        const stateBest = new Map<string, { name: string; value: number; units: number; location: string }>();
+
+        // Re-use aggregated distributor sales
+        salesData.distributorSales.forEach(ds => {
+            // Calculate total units (paid + free)
+            let totalUnits = 0;
+            salesData.productColumns.forEach(col => {
+                totalUnits += (Number(ds[col]) || 0) + (Number(ds[`${col} free`]) || 0);
+            });
+
+            const dist = distributors.find(d => d.id === ds.distributorId);
+            if (!dist) return;
+
+            const perfData = {
+                name: dist.name,
+                value: ds.totalWithGst,
+                units: totalUnits,
+                location: `${dist.area}, ${dist.state}`
+            };
+
+            // Check National
+            if (totalUnits > maxNationalUnits) {
+                maxNationalUnits = totalUnits;
+                nationalTop = perfData;
+            }
+
+            // Check State
+            const stateName = dist.state; // Assumes normalized state names match map keys logic elsewhere or close enough
+            const currentStateBest = stateBest.get(stateName);
+            if (!currentStateBest || totalUnits > currentStateBest.units) {
+                stateBest.set(stateName, perfData);
+            }
+        });
+
+        // Convert Map to object for easier prop passing if needed, or keep as Map
+        // Let's pass a lookup function or simple object
+        const stateTopObj: Record<string, { name: string; value: number; units: number; location: string }> = {};
+        stateBest.forEach((v, k) => { stateTopObj[k.toLowerCase().trim()] = v; }); // Normalize keys for easier lookup
+
+        return {
+            national: nationalTop,
+            state: stateTopObj
+        };
+
+    }, [salesData.distributorSales, salesData.productColumns, distributors]);
+
     const { items: sortedProductSummary, requestSort: requestProductSort, sortConfig: productSortConfig } = useSortableData(salesData.productSalesSummary, { key: 'total', direction: 'descending' });
     const { items: sortedDistributorSales, requestSort: requestDistributorSalesSort, sortConfig: distributorSalesSortConfig } = useSortableData(salesData.distributorSales, { key: 'totalWithGst', direction: 'descending' });
 
@@ -475,7 +590,7 @@ const SalesPage: React.FC = () => {
         }
         return str;
     };
-    
+
     const getBaseFilename = () => {
         const distributorName = selectedDistributorId === 'all'
             ? 'All_Distributors'
@@ -490,7 +605,7 @@ const SalesPage: React.FC = () => {
     }
 
     const triggerCsvDownload = (content: string, filename: string) => {
-         const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement("a");
         if (link.download !== undefined) {
             const url = URL.createObjectURL(blob);
@@ -502,7 +617,7 @@ const SalesPage: React.FC = () => {
             document.body.removeChild(link);
         }
     }
-    
+
     const handleExportDetailedCsv = () => {
         if (loading) return;
 
@@ -512,7 +627,7 @@ const SalesPage: React.FC = () => {
         const distributorMap = new Map<string, Distributor>(distributors.map(d => [d.id, d]));
 
         const filename = `detailed_report_${getBaseFilename()}.csv`;
-        
+
         const filterSummary = [
             ['Sales Report Filters'],
             ['Date Range', `${dateRange.from ? formatDateDDMMYYYY(dateRange.from) : 'N/A'} to ${dateRange.to ? formatDateDDMMYYYY(dateRange.to) : 'N/A'}`],
@@ -561,9 +676,9 @@ const SalesPage: React.FC = () => {
 
     const handleExportTableCsv = () => {
         const { salesTotals, productColumns } = salesData;
-        
+
         const filename = `summary_report_${getBaseFilename()}.csv`;
-        
+
         const headers: string[] = ['Distributor ID', 'Distributor Name', 'Frequency'];
         productColumns.forEach(name => {
             headers.push(name);
@@ -609,7 +724,7 @@ const SalesPage: React.FC = () => {
             p.free,
             p.total
         ].map(escapeCsvCell));
-        
+
         const totalRow = [
             'Total',
             sortedProductSummary.reduce((sum, p) => sum + p.paid, 0),
@@ -663,13 +778,64 @@ const SalesPage: React.FC = () => {
                 </div>
             </Card>
 
+            <SalesMap data={salesData.salesByStateData} onDistrictClick={handleDistrictClick} topPerformers={topPerformers} />
+
+            {/* Modal for District Top Distributors */}
+            {selectedDistrictForModal && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[80vh] flex flex-col">
+                        <div className="flex justify-between items-center p-4 border-b">
+                            <h3 className="text-lg font-bold">Top Distributors in {selectedDistrictForModal.district}</h3>
+                            <button onClick={() => setSelectedDistrictForModal(null)} className="p-1 hover:bg-slate-100 rounded-full">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto">
+                            {districtModalData.length > 0 ? (
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="bg-slate-50 text-left">
+                                            <th className="p-2 rounded-l">Rank</th>
+                                            <th className="p-2">Distributor</th>
+                                            <th className="p-2 text-right rounded-r">Units Sold</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {districtModalData.map((d, i) => (
+                                            <tr key={i} className={`border-b last:border-0 hover:bg-slate-50 ${i === 0 ? 'bg-yellow-50' : ''}`}>
+                                                <td className="p-2 font-bold text-slate-500 w-12 text-center">
+                                                    {i === 0 ? <Trophy size={16} className="text-yellow-600 mx-auto" /> : i + 1}
+                                                </td>
+                                                <td className="p-2">
+                                                    <div className="font-medium flex items-center gap-2">
+                                                        {d.name}
+                                                        {i === 0 && <span className="text-[10px] bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded-full font-bold">TOP</span>}
+                                                    </div>
+                                                    <div className="text-xs text-contentSecondary">{d.agentCode}</div>
+                                                </td>
+                                                <td className="p-2 text-right font-bold text-primary">{formatIndianNumber(d.units)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            ) : (
+                                <p className="text-center text-contentSecondary py-8">No sales data found for this district in the selected time range.</p>
+                            )}
+                        </div>
+                        <div className="p-4 border-t bg-slate-50 rounded-b-lg text-right">
+                            <Button variant="secondary" onClick={() => setSelectedDistrictForModal(null)}>Close</Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <StatCard title="Total Sales" value={formatIndianCurrency(salesData.totalSalesValue)} icon={<DollarSign />} iconBgClass="bg-primary/10 text-primary" />
                 <StatCard title="Total Units Sold (Paid)" value={formatIndianNumber(salesData.totalPaidQty)} icon={<Package />} iconBgClass="bg-blue-500/10 text-blue-600" />
                 <StatCard title="Total Units Given (Free)" value={formatIndianNumber(salesData.totalFreeQty)} icon={<Gift />} iconBgClass="bg-green-500/10 text-green-600" />
             </div>
 
-            <SalesCharts 
+            <SalesCharts
                 salesData={salesData}
                 chartGranularity={chartGranularity}
                 setChartGranularity={setChartGranularity}
@@ -707,7 +873,7 @@ const SalesPage: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
-                 {/* Mobile Card View */}
+                {/* Mobile Card View */}
                 <div className="md:hidden space-y-4">
                     {sortedProductSummary.map(p => (
                         <Card key={p.skuName}>
@@ -730,7 +896,7 @@ const SalesPage: React.FC = () => {
                     ))}
                 </div>
             </Card>
-            
+
             <Card>
                 <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
                     <h3 className="text-lg font-semibold text-content flex items-center"><BarChart size={20} className="mr-2 text-primary" /> Distributor Sales Table</h3>
@@ -751,7 +917,7 @@ const SalesPage: React.FC = () => {
                                     <SortableTableHeader label="Distributor Name" sortKey="distributorName" requestSort={requestDistributorSalesSort} sortConfig={distributorSalesSortConfig} />
                                 </th>
                                 <th rowSpan={2} className="p-3 align-bottom">
-                                    <SortableTableHeader label="Frequency" sortKey="frequency" requestSort={requestDistributorSalesSort} sortConfig={distributorSalesSortConfig} className="text-center"/>
+                                    <SortableTableHeader label="Frequency" sortKey="frequency" requestSort={requestDistributorSalesSort} sortConfig={distributorSalesSortConfig} className="text-center" />
                                 </th>
                                 {salesData.productColumns.map(name => (
                                     <th key={name} colSpan={2} className="p-2 font-semibold text-contentSecondary text-center border-x border-border whitespace-nowrap">{name}</th>
@@ -776,7 +942,7 @@ const SalesPage: React.FC = () => {
                             {sortedDistributorSales.map(sale => (
                                 <tr key={sale.distributorId} className="border-b border-border last:border-b-0 group hover:bg-slate-50">
                                     <td className="p-3 font-mono text-xs">{sale.distributorId}</td>
-                                    <td 
+                                    <td
                                         className="p-3 font-medium sticky left-0 bg-white group-hover:bg-slate-50 border-r border-border text-primary hover:underline cursor-pointer"
                                         onClick={() => navigate(`/distributors/${sale.distributorId}`, { state: { initialTab: 'wallet' } })}
                                     >
@@ -823,9 +989,9 @@ const SalesPage: React.FC = () => {
                 <div className="md:hidden space-y-4">
                     {sortedDistributorSales.map(sale => (
                         <Card key={sale.distributorId}>
-                             <div className="flex justify-between items-start">
+                            <div className="flex justify-between items-start">
                                 <div>
-                                    <p 
+                                    <p
                                         className="font-bold text-primary hover:underline cursor-pointer"
                                         onClick={() => navigate(`/distributors/${sale.distributorId}`, { state: { initialTab: 'wallet' } })}
                                     >
@@ -845,10 +1011,10 @@ const SalesPage: React.FC = () => {
                                 </div>
                                 <div onClick={() => setExpandedDistributor(prev => prev === sale.distributorId ? null : sale.distributorId)} className="flex items-center text-primary font-semibold cursor-pointer">
                                     {expandedDistributor === sale.distributorId ? 'Hide Details' : 'Show Details'}
-                                    {expandedDistributor === sale.distributorId ? <ChevronDown size={16} className="ml-1"/> : <ChevronRight size={16} className="ml-1"/>}
+                                    {expandedDistributor === sale.distributorId ? <ChevronDown size={16} className="ml-1" /> : <ChevronRight size={16} className="ml-1" />}
                                 </div>
                             </div>
-                             {expandedDistributor === sale.distributorId && (
+                            {expandedDistributor === sale.distributorId && (
                                 <div className="mt-4 pt-4 border-t text-sm space-y-2">
                                     <h4 className="font-semibold text-content mb-1">Product Quantities</h4>
                                     {salesData.productColumns.map((name: string) => {

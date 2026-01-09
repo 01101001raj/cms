@@ -10,15 +10,15 @@ import json
 from datetime import datetime
 
 # Backend API endpoint (latest deployment)
-API_URL = "https://backend-o2hwfjh2k-01101001rajs-projects.vercel.app/api/v1/distributors/bulk-import"
+API_URL = "https://backend-fdr4fnd9c-01101001rajs-projects.vercel.app/api/v1/distributors/bulk-import"
 
 def read_csv(filename):
     """Read CSV file and convert to distributor objects"""
     distributors = []
 
     with open(filename, 'r', encoding='utf-8') as file:
-        # Try tab-delimited first, then comma
-        reader = csv.DictReader(file, delimiter='\t')
+        # Use comma delimiter for CSV
+        reader = csv.DictReader(file, delimiter=',')
 
         for row in reader:
             # Skip empty rows
@@ -27,6 +27,7 @@ def read_csv(filename):
 
             # Map CSV columns to API format
             distributor = {
+                "agentCode": row.get("code", "").strip(),  # Use code from CSV as agent code
                 "name": row.get("name", "").strip(),
                 "phone": row.get("phone", "").strip(),
                 "state": row.get("state", "").strip(),
@@ -58,7 +59,7 @@ def import_distributors(distributors):
         response.raise_for_status()
 
         result = response.json()
-        print(f"\n✅ Success!")
+        print(f"\nSUCCESS!")
         print(f"Created: {result['created_count']} distributors")
         print(f"Errors: {result['error_count']}")
 
@@ -72,7 +73,7 @@ def import_distributors(distributors):
         return result
 
     except requests.exceptions.RequestException as e:
-        print(f"❌ Error: {e}")
+        print(f"ERROR: {e}")
         if hasattr(e.response, 'text'):
             print(f"Response: {e.response.text}")
         return None

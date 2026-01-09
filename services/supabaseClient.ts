@@ -10,7 +10,7 @@ const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
 export const supabase = (supabaseUrl && supabaseAnonKey)
   ? createClient<any>(supabaseUrl, supabaseAnonKey, {
       auth: {
-        // Use localStorage to persist session across tabs and browser restarts
+        // Use localStorage for reliable persistence across app switches
         storage: window.localStorage,
         storageKey: 'supabase.auth.token',
         // Enable session persistence
@@ -19,6 +19,8 @@ export const supabase = (supabaseUrl && supabaseAnonKey)
         autoRefreshToken: true,
         // Detect session from the URL, which is useful for OAuth and password recovery flows
         detectSessionInUrl: true,
+        // PKCE flow for secure authentication
+        flowType: 'pkce',
       },
     })
   : null;

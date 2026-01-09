@@ -1,5 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.api.routes import auth, distributors, orders, stock, wallet, products, stores, reports, migrations, companies
 
@@ -11,6 +13,17 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url=None  # Disable ReDoc to reduce bundle size
 )
+
+# Add custom validation error handler
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    print(f"[VALIDATION ERROR] Path: {request.url.path}")
+    print(f"[VALIDATION ERROR] Body: {await request.body()}")
+    print(f"[VALIDATION ERROR] Errors: {exc.errors()}")
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": exc.errors()},
+    )
 
 # Configure CORS
 app.add_middleware(

@@ -4,11 +4,22 @@ import React, { ReactNode } from 'react';
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
   className?: string;
+  noPadding?: boolean;
 }
 
-const Card: React.FC<CardProps> = ({ children, className = '', ...props }) => {
+const Card: React.FC<CardProps> = ({ children, className = '', noPadding = false, onClick, ...props }) => {
   return (
-    <div className={`bg-card shadow-md rounded-xl p-6 border border-border ${className}`} {...props}>
+    <div
+      className={`
+            bg-card rounded-2xl shadow-card border border-border/50
+            transition-all duration-300 ease-out
+            ${onClick ? 'cursor-pointer hover:shadow-card-hover hover:-translate-y-1' : ''}
+            ${noPadding ? '' : 'p-6 sm:p-8'} 
+            ${className}
+        `}
+      onClick={onClick}
+      {...props}
+    >
       {children}
     </div>
   );

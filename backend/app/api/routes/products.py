@@ -49,6 +49,19 @@ async def update_sku(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.delete("/skus/{sku_id}")
+async def delete_sku(
+    sku_id: str,
+    supabase: Client = Depends(get_supabase_client)
+):
+    """Delete a SKU"""
+    try:
+        response = supabase.table("skus").delete().eq("id", sku_id).execute()
+        return {"message": "SKU deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Scheme Endpoints
 @router.get("/schemes", response_model=List[Scheme])
 async def get_schemes(
@@ -69,11 +82,18 @@ async def create_scheme(
 ):
     """Create a new scheme"""
     try:
+        print(f"[DEBUG] Attempting to create scheme with data: {scheme.model_dump()}")
         response = supabase.table("schemes").insert(scheme.model_dump()).execute()
+        print(f"[DEBUG] Scheme creation response: {response}")
         if not response.data:
+            print("[ERROR] No data returned from scheme creation")
             raise HTTPException(status_code=400, detail="Failed to create scheme")
+        print(f"[SUCCESS] Scheme created successfully: {response.data[0]}")
         return response.data[0]
     except Exception as e:
+        print(f"[ERROR] Exception in create_scheme: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 

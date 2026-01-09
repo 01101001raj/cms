@@ -168,7 +168,7 @@ export const createStockService = (supabase: SupabaseClient) => ({
             return { sku_id: item.sku_id, location_id: storeId, quantity: (Number(stock?.quantity) || 0) + item.quantity, reserved: Number(stock?.reserved) || 0 };
         });
         const storeLedger = (transferItems || []).map(item => ({ sku_id: item.sku_id, quantity_change: item.quantity, balance_after: (Number(storeStockMap.get(item.sku_id)?.quantity) || 0) + item.quantity, type: StockMovementType.TRANSFER_IN, location_id: storeId, notes: `Transfer from Plant`, initiated_by: username }));
-        
+
         await supabase.from('stock_items').upsert(plantStockUpdates).then(res => { if(res.error) throw res.error });
         await supabase.from('stock_items').upsert(storeStockUpdates).then(res => { if(res.error) throw res.error });
         await supabase.from('stock_ledger').insert([...plantLedger, ...storeLedger]).then(res => { if(res.error) throw res.error });

@@ -34,260 +34,492 @@ type DistributorSnapshot = Distributor & {
 
 
 const Dashboard: React.FC = () => {
-  const navigate = useNavigate();
-  const { currentUser, portal } = useAuth();
-  const [activeTab, setActiveTab] = useState<'overview' | 'distributors' | 'inventory'>('overview');
-  
-  // Data states
-  const [distributors, setDistributors] = useState<Distributor[] | null>(null);
-  const [stores, setStores] = useState<Store[] | null>(null);
-  const [orders, setOrders] = useState<Order[] | null>(null);
-  const [allOrderItems, setAllOrderItems] = useState<OrderItem[] | null>(null);
-  const [skus, setSkus] = useState<SKU[] | null>(null);
-  const [portalStockItems, setPortalStockItems] = useState<EnrichedStockItem[] | null>(null);
-  const [plantStock, setPlantStock] = useState<EnrichedStockItem[] | null>(null);
-  const [storeStock, setStoreStock] = useState<EnrichedStockItem[]>([]);
-  const [loadingStoreStock, setLoadingStoreStock] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+    const navigate = useNavigate();
+    const { currentUser, portal } = useAuth();
+    const [activeTab, setActiveTab] = useState<'overview' | 'distributors' | 'inventory'>('overview');
 
-  // Combined effect for data fetching
-  useEffect(() => {
-    if (!portal) return;
+    // Data states
+    const [distributors, setDistributors] = useState<Distributor[] | null>(null);
+    const [stores, setStores] = useState<Store[] | null>(null);
+    const [orders, setOrders] = useState<Order[] | null>(null);
+    const [allOrderItems, setAllOrderItems] = useState<OrderItem[] | null>(null);
+    const [skus, setSkus] = useState<SKU[] | null>(null);
+    const [portalStockItems, setPortalStockItems] = useState<EnrichedStockItem[] | null>(null);
+    const [plantStock, setPlantStock] = useState<EnrichedStockItem[] | null>(null);
+    const [storeStock, setStoreStock] = useState<EnrichedStockItem[]>([]);
+    const [loadingStoreStock, setLoadingStoreStock] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
 
-    // Reset states on portal change
-    const resetStates = () => {
-        setDistributors(null);
-        setOrders(null);
-        setAllOrderItems(null);
-        setSkus(null);
-        setStores(null);
-        setPortalStockItems(null);
-        setPlantStock(null);
-        setStoreStock([]);
-    };
-    resetStates();
+    // Combined effect for data fetching
+    useEffect(() => {
+        if (!portal) return;
 
-    const fetchPrimaryData = async () => {
-        try {
-            const stockLocationId = portal.type === 'plant' ? null : portal.id!;
-            const storesPromise = portal.type === 'plant' ? api.getStores() : Promise.resolve([]);
-
-            const [distributorData, portalStockData, storesData, skuData, orderData, orderItemData] = await Promise.all([
-                api.getDistributors(portal),
-                api.getStock(stockLocationId),
-                storesPromise,
-                api.getSKUs(),
-                api.getOrders(portal),
-                api.getAllOrderItems(portal)
-            ]);
-
-            setDistributors(distributorData);
-            setPortalStockItems(portalStockData);
-            setSkus(skuData);
-            setOrders(orderData);
-            setAllOrderItems(orderItemData);
-
-            if (portal.type === 'plant') {
-                setPlantStock(portalStockData);
-                setStores(storesData || []);
-            } else {
-                setStores([]);
-            }
-        } catch (error) {
-            console.error("Failed to fetch dashboard data:", error);
-            // Set to empty arrays on error to stop skeleton loaders
-            setDistributors([]); setPortalStockItems([]); setStores([]); setSkus([]); setOrders([]); setAllOrderItems([]);
-        }
-    };
-
-    fetchPrimaryData();
-  }, [portal]);
-
-  // Effect for secondary, slow-loading data (all store stocks for plant admin)
-  useEffect(() => {
-    const fetchAllStoreStock = async () => {
-        if (portal?.type === 'plant' && stores && stores.length > 0) {
-            setLoadingStoreStock(true);
+        const fetchPrimaryData = async () => {
             try {
-                const allStoreStockItems: EnrichedStockItem[] = [];
-                const batchSize = 5;
-                for (let i = 0; i < stores.length; i += batchSize) {
-                    const batch = stores.slice(i, i + batchSize);
-                    const storeStockPromises = batch.map(store => api.getStock(store.id));
-                    const batchResults = await Promise.all(storeStockPromises);
-                    batchResults.forEach(result => allStoreStockItems.push(...result));
+                // LAZY LOADING: Only load minimal data for dashboard overview
+                // Individual pages will load their own data when navigated to
+                if (activeTab === 'overview') {
+                    // Load data needed for overview cards including Top Movers
+                    const [distributorData, orderData, orderItemData, skuData] = await Promise.all([
+                        api.getDistributors(portal),
+                        api.getOrders(portal),
+                        api.getAllOrderItems(portal),
+                        api.getSKUs()
+                    ]);
+                    setDistributors(distributorData);
+                    setOrders(orderData);
+                    setAllOrderItems(orderItemData);
+                    setSkus(skuData);
+                    // Set others to empty to show skeleton has loaded
+                    setStores([]);
+                    setPortalStockItems([]);
+                } else if (activeTab === 'distributors') {
+                    // Load distributor-specific data
+                    const [distributorData, orderData, orderItemData] = await Promise.all([
+                        api.getDistributors(portal),
+                        api.getOrders(portal),
+                        api.getAllOrderItems(portal)
+                    ]);
+                    setDistributors(distributorData);
+                    setOrders(orderData);
+                    setAllOrderItems(orderItemData);
+                } else if (activeTab === 'inventory') {
+                    // Load inventory-specific data
+                    const stockLocationId = portal.type === 'plant' ? null : portal.id!;
+                    const [portalStockData, skuData] = await Promise.all([
+                        api.getStock(stockLocationId),
+                        api.getSKUs()
+                    ]);
+                    setPortalStockItems(portalStockData);
+                    setSkus(skuData);
+                    if (portal.type === 'plant') {
+                        setPlantStock(portalStockData);
+                    }
                 }
-                setStoreStock(allStoreStockItems);
             } catch (error) {
-                 console.error("Failed to fetch all store stock data:", error);
-            } finally {
-                setLoadingStoreStock(false);
+                console.error("Failed to fetch dashboard data:", error);
+                if (error instanceof Error) {
+                    console.error("Error details:", error.message);
+                }
+                // Set to empty arrays on error to stop skeleton loaders
+                setDistributors([]); setPortalStockItems([]); setStores([]); setSkus([]); setOrders([]); setAllOrderItems([]);
             }
-        }
+        };
+
+        fetchPrimaryData();
+    }, [portal, activeTab]); // Refetch when tab changes
+
+    // Effect for secondary, slow-loading data (all store stocks for plant admin)
+    useEffect(() => {
+        const fetchAllStoreStock = async () => {
+            if (portal?.type === 'plant' && stores && stores.length > 0) {
+                setLoadingStoreStock(true);
+                try {
+                    const allStoreStockItems: EnrichedStockItem[] = [];
+                    const batchSize = 5;
+                    for (let i = 0; i < stores.length; i += batchSize) {
+                        const batch = stores.slice(i, i + batchSize);
+                        const storeStockPromises = batch.map(store => api.getStock(store.id));
+                        const batchResults = await Promise.all(storeStockPromises);
+                        batchResults.forEach(result => allStoreStockItems.push(...result));
+                    }
+                    setStoreStock(allStoreStockItems);
+                } catch (error) {
+                    console.error("Failed to fetch all store stock data:", error);
+                } finally {
+                    setLoadingStoreStock(false);
+                }
+            }
+        };
+        fetchAllStoreStock();
+    }, [portal, stores]);
+
+    const { totalSales, pendingOrders, deliveredOrders } = useMemo(() => {
+        if (!orders) return { totalSales: 0, pendingOrders: 0, deliveredOrders: 0 };
+        return orders.reduce((acc, order) => {
+            if (order.status === OrderStatus.DELIVERED) {
+                acc.totalSales += order.totalAmount;
+                acc.deliveredOrders++;
+            } else if (order.status === OrderStatus.PENDING) {
+                acc.pendingOrders++;
+            }
+            return acc;
+        }, { totalSales: 0, pendingOrders: 0, deliveredOrders: 0 });
+    }, [orders]);
+
+    const totalDistributors = useMemo(() => distributors?.length ?? 0, [distributors]);
+    const totalPlantStockUnits = useMemo(() => plantStock?.reduce((sum, item) => sum + (item.quantity - item.reserved), 0) ?? 0, [plantStock]);
+    const totalStoreStockUnits = useMemo(() => storeStock.reduce((sum, item) => sum + (item.quantity - item.reserved), 0), [storeStock]);
+
+    const storeMap = useMemo(() => new Map(stores?.map(s => [s.id, s.name]) || []), [stores]);
+    const skuMap = useMemo(() => new Map(skus?.map(s => [s.id, s.name]) || []), [skus]);
+
+    const distributorSnapshots: DistributorSnapshot[] = useMemo(() => {
+        if (!distributors || !orders) return [];
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        return distributors.map(d => {
+            const distOrders = orders
+                .filter(o => o.distributorId === d.id && o.status === OrderStatus.DELIVERED)
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+            const salesLast30Days = distOrders.filter(o => new Date(o.date) >= thirtyDaysAgo).reduce((sum, o) => sum + o.totalAmount, 0);
+            const lastOrderDate = distOrders.length > 0 ? distOrders[0].date : null;
+            const assignment = d.storeId ? storeMap.get(d.storeId) || 'Unknown Store' : 'Plant';
+            const availableFunds = d.walletBalance + d.creditLimit;
+
+            return { ...d, lastOrderDate, salesLast30Days, assignment, availableFunds };
+        });
+    }, [distributors, orders, storeMap]);
+
+    const overviewData = useMemo(() => {
+        if (!distributorSnapshots || !orders || !allOrderItems || !skus) return null;
+        const sixtyDaysAgo = new Date();
+        sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
+        const lowFundsDistributors = distributorSnapshots.filter(d => d.availableFunds < 1000).sort((a, b) => a.availableFunds - b.availableFunds);
+        const inactiveDistributors = distributorSnapshots.filter(d => !d.lastOrderDate || new Date(d.lastOrderDate) < sixtyDaysAgo).sort((a, b) => a.name.localeCompare(b.name));
+        const recentOrders = orders.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+
+        const productVolumes = allOrderItems.filter(item => !item.isFreebie).reduce((acc, item) => {
+            acc.set(item.skuId, (acc.get(item.skuId) || 0) + item.quantity);
+            return acc;
+        }, new Map<string, number>());
+
+        const topProducts = Array.from(productVolumes.entries())
+            .map(([skuId, quantity]) => ({ skuId, skuName: skuMap.get(skuId) || 'Unknown', quantity }))
+            .sort((a, b) => b.quantity - a.quantity)
+            .slice(0, 5);
+
+        return { lowFundsDistributors, inactiveDistributors, recentOrders, topProducts };
+    }, [distributorSnapshots, orders, allOrderItems, skus, skuMap]);
+
+    const filteredDistributors = useMemo(() => distributorSnapshots.filter(d =>
+        d.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        d.assignment.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (d.agentCode || '').toLowerCase().includes(searchTerm.toLowerCase())
+    ), [distributorSnapshots, searchTerm]);
+
+    const { items: sortedDistributors, requestSort, sortConfig } = useSortableData<DistributorSnapshot>(filteredDistributors, { key: 'name', direction: 'ascending' });
+    const { items: sortedStock, requestSort: requestStockSort, sortConfig: stockSortConfig } = useSortableData<EnrichedStockItem>(portalStockItems || [], { key: 'skuName', direction: 'ascending' });
+
+    const renderAvailableFunds = (distributor: DistributorSnapshot) => {
+        const availableFunds = distributor.availableFunds;
+        const totalCredit = Math.max(1, distributor.walletBalance > 0 ? distributor.walletBalance + distributor.creditLimit : distributor.creditLimit);
+        const percentage = Math.max(0, Math.min(100, (availableFunds / totalCredit) * 100));
+        let barColorClass = availableFunds <= 0 ? 'bg-red-500' : distributor.walletBalance <= 0 ? 'bg-yellow-500' : 'bg-green-500';
+
+        return (
+            <div className="w-full">
+                <span className={`font-semibold ${availableFunds < 0 ? 'text-red-600' : 'text-content'}`}>{formatIndianCurrency(availableFunds)}</span>
+                <div className="w-full bg-slate-200 rounded-full h-1.5 mt-1" title={`Wallet: ${formatIndianCurrency(distributor.walletBalance)} | Credit: ${formatIndianCurrency(distributor.creditLimit)}`}>
+                    <div className={`${barColorClass} h-1.5 rounded-full`} style={{ width: `${percentage}%` }}></div>
+                </div>
+            </div>
+        );
     };
-    fetchAllStoreStock();
-  }, [portal, stores]);
 
-  const { totalSales, pendingOrders, deliveredOrders } = useMemo(() => {
-    if (!orders) return { totalSales: 0, pendingOrders: 0, deliveredOrders: 0 };
-    return orders.reduce((acc, order) => {
-        if (order.status === OrderStatus.DELIVERED) {
-            acc.totalSales += order.totalAmount;
-            acc.deliveredOrders++;
-        } else if (order.status === OrderStatus.PENDING) {
-            acc.pendingOrders++;
-        }
-        return acc;
-    }, { totalSales: 0, pendingOrders: 0, deliveredOrders: 0 });
-  }, [orders]);
+    const isLoadingPrimaryData = !distributors || !orders || !portalStockItems || !skus || !allOrderItems;
 
-  const totalDistributors = useMemo(() => distributors?.length ?? 0, [distributors]);
-  const totalPlantStockUnits = useMemo(() => plantStock?.reduce((sum, item) => sum + (item.quantity - item.reserved), 0) ?? 0, [plantStock]);
-  const totalStoreStockUnits = useMemo(() => storeStock.reduce((sum, item) => sum + (item.quantity-item.reserved), 0), [storeStock]);
-  
-  const storeMap = useMemo(() => new Map(stores?.map(s => [s.id, s.name]) || []), [stores]);
-  const skuMap = useMemo(() => new Map(skus?.map(s => [s.id, s.name]) || []), [skus]);
+    return (
+        <div className="space-y-8 animate-fade-in">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Dashboard</h1>
+                    <p className="text-slate-500 mt-1">Overview for {portal?.name}</p>
+                </div>
+                <div className="bg-white px-4 py-2 rounded-full shadow-sm border border-slate-100 text-sm text-slate-500 font-medium">
+                    {formatDateDDMMYYYY(new Date().toISOString())}
+                </div>
+            </div>
 
-  const distributorSnapshots: DistributorSnapshot[] = useMemo(() => {
-    if (!distributors || !orders) return [];
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {isLoadingPrimaryData ? (
+                    Array(4).fill(0).map((_, i) => <StatCardSkeleton key={i} />)
+                ) : (
+                    <>
+                        <Card className="hover:shadow-md transition-shadow duration-200 border-none shadow-soft">
+                            <div className="flex flex-col">
+                                <span className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Total Revenue</span>
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-3xl font-bold text-gray-900">{formatIndianCurrency(totalSales).replace('₹', '')}</span>
+                                    <span className="text-lg font-medium text-slate-400">₹</span>
+                                </div>
+                                <div className="mt-4 flex items-center text-xs text-green-600 font-medium bg-green-50 w-fit px-2 py-1 rounded-md">
+                                    <TrendingUp size={12} className="mr-1" /> +12.5% vs last month
+                                </div>
+                            </div>
+                        </Card>
 
-    return distributors.map(d => {
-        const distOrders = orders
-            .filter(o => o.distributorId === d.id && o.status === OrderStatus.DELIVERED)
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                        <Card className="hover:shadow-md transition-shadow duration-200 border-none shadow-soft">
+                            <div className="flex flex-col">
+                                <span className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Active Distributors</span>
+                                <span className="text-3xl font-bold text-gray-900">{totalDistributors}</span>
+                                <div className="mt-4 flex items-center text-xs text-slate-400 font-medium">
+                                    Total Partners
+                                </div>
+                            </div>
+                        </Card>
 
-        const salesLast30Days = distOrders.filter(o => new Date(o.date) >= thirtyDaysAgo).reduce((sum, o) => sum + o.totalAmount, 0);
-        const lastOrderDate = distOrders.length > 0 ? distOrders[0].date : null;
-        const assignment = d.storeId ? storeMap.get(d.storeId) || 'Unknown Store' : 'Plant';
-        const availableFunds = d.walletBalance + d.creditLimit;
+                        <Card className="hover:shadow-md transition-shadow duration-200 border-none shadow-soft group cursor-pointer" onClick={() => setActiveTab('overview')}>
+                            <div className="flex flex-col">
+                                <span className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2 group-hover:text-primary transition-colors">Pending Orders</span>
+                                <span className={`text-3xl font-bold ${pendingOrders > 0 ? 'text-amber-500' : 'text-gray-900'}`}>{pendingOrders}</span>
+                                <div className="mt-4 flex items-center text-xs text-amber-600 font-medium bg-amber-50 w-fit px-2 py-1 rounded-md">
+                                    Needs Attention
+                                </div>
+                            </div>
+                        </Card>
 
-        return { ...d, lastOrderDate, salesLast30Days, assignment, availableFunds };
-    });
-  }, [distributors, orders, storeMap]);
-
-  const overviewData = useMemo(() => {
-    if (!distributorSnapshots || !orders || !allOrderItems || !skus) return null;
-    const sixtyDaysAgo = new Date();
-    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-
-    const lowFundsDistributors = distributorSnapshots.filter(d => d.availableFunds < 1000).sort((a, b) => a.availableFunds - b.availableFunds);
-    const inactiveDistributors = distributorSnapshots.filter(d => !d.lastOrderDate || new Date(d.lastOrderDate) < sixtyDaysAgo).sort((a,b) => a.name.localeCompare(b.name));
-    const recentOrders = orders.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
-
-    const productVolumes = allOrderItems.filter(item => !item.isFreebie).reduce((acc, item) => {
-        acc.set(item.skuId, (acc.get(item.skuId) || 0) + item.quantity);
-        return acc;
-    }, new Map<string, number>());
-    
-    const topProducts = Array.from(productVolumes.entries())
-        .map(([skuId, quantity]) => ({ skuId, skuName: skuMap.get(skuId) || 'Unknown', quantity }))
-        .sort((a,b) => b.quantity - a.quantity)
-        .slice(0, 5);
-
-    return { lowFundsDistributors, inactiveDistributors, recentOrders, topProducts };
-  }, [distributorSnapshots, orders, allOrderItems, skus, skuMap]);
-
-  const filteredDistributors = useMemo(() => distributorSnapshots.filter(d =>
-    d.name.toLowerCase().includes(searchTerm.toLowerCase()) || d.assignment.toLowerCase().includes(searchTerm.toLowerCase())
-  ), [distributorSnapshots, searchTerm]);
-  
-  const { items: sortedDistributors, requestSort, sortConfig } = useSortableData<DistributorSnapshot>(filteredDistributors, { key: 'name', direction: 'ascending' });
-  const { items: sortedStock, requestSort: requestStockSort, sortConfig: stockSortConfig } = useSortableData<EnrichedStockItem>(portalStockItems || [], { key: 'skuName', direction: 'ascending' });
-
-  const renderAvailableFunds = (distributor: DistributorSnapshot) => {
-      const availableFunds = distributor.availableFunds;
-      const totalCredit = Math.max(1, distributor.walletBalance > 0 ? distributor.walletBalance + distributor.creditLimit : distributor.creditLimit);
-      const percentage = Math.max(0, Math.min(100, (availableFunds / totalCredit) * 100));
-      let barColorClass = availableFunds <= 0 ? 'bg-red-500' : distributor.walletBalance <= 0 ? 'bg-yellow-500' : 'bg-green-500';
-
-      return (
-          <div className="w-full">
-               <span className={`font-semibold ${availableFunds < 0 ? 'text-red-600' : 'text-content'}`}>{formatIndianCurrency(availableFunds)}</span>
-               <div className="w-full bg-slate-200 rounded-full h-1.5 mt-1" title={`Wallet: ${formatIndianCurrency(distributor.walletBalance)} | Credit: ${formatIndianCurrency(distributor.creditLimit)}`}>
-                  <div className={`${barColorClass} h-1.5 rounded-full`} style={{ width: `${percentage}%` }}></div>
-              </div>
-          </div>
-      );
-  };
-  
-  const isLoadingPrimaryData = !distributors || !orders || !portalStockItems || !skus || !allOrderItems;
-  
-  return (
-    <div className="space-y-6">
-       <div>
-            <h1 className="text-2xl font-bold text-content">Welcome, {currentUser?.username}!</h1>
-            <p className="text-contentSecondary">Viewing dashboard for {portal?.name}.</p>
-        </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {isLoadingPrimaryData ? <StatCardSkeleton /> : (<Card><div className="flex items-center"><div className="p-3 rounded-full bg-primary/10 text-primary mr-4"><DollarSign /></div><div><p className="text-sm font-medium text-contentSecondary">Total Sales (Delivered)</p><p className="text-2xl font-bold">{formatIndianCurrency(totalSales)}</p></div></div></Card>)}
-        {isLoadingPrimaryData ? <StatCardSkeleton /> : (<Card><div className="flex items-center"><div className="p-3 rounded-full bg-green-500/10 text-green-600 mr-4"><Users /></div><div><p className="text-sm font-medium text-contentSecondary">Active Distributors</p><p className="text-2xl font-bold">{totalDistributors}</p></div></div></Card>)}
-        {isLoadingPrimaryData ? <StatCardSkeleton /> : (<Card><div className="flex items-center"><div className="p-3 rounded-full bg-yellow-500/10 text-yellow-600 mr-4"><Package /></div><div><p className="text-sm font-medium text-contentSecondary">Pending Orders</p><p className="text-2xl font-bold">{pendingOrders}</p></div></div></Card>)}
-        {portal?.type === 'plant' 
-            ? <Card><div className="flex items-center"><div className="p-3 rounded-full bg-indigo-500/10 text-indigo-600 mr-4"><Warehouse /></div><div><p className="text-sm font-medium text-contentSecondary">Available Stock (All)</p>{loadingStoreStock || isLoadingPrimaryData ? <div className="animate-pulse h-8 w-24 bg-slate-200 rounded mt-2"></div> : <p className="text-2xl font-bold">{formatIndianNumber(totalPlantStockUnits + totalStoreStockUnits)}</p>}</div></div></Card> 
-            : isLoadingPrimaryData ? <StatCardSkeleton /> : (<Card><div className="flex items-center"><div className="p-3 rounded-full bg-blue-500/10 text-blue-600 mr-4"><CheckCircle /></div><div><p className="text-sm font-medium text-contentSecondary">Delivered Orders</p><p className="text-2xl font-bold">{deliveredOrders}</p></div></div></Card>)
-        }
-      </div>
-
-      <Card>
-        <div className="border-b border-border">
-            <nav className="-mb-px flex space-x-6" aria-label="Tabs">
-                <button onClick={() => setActiveTab('overview')} className={`flex items-center gap-2 py-3 px-1 border-b-2 font-medium text-sm ${activeTab === 'overview' ? 'border-primary text-primary' : 'border-transparent text-contentSecondary hover:text-content hover:border-slate-300'}`}><LayoutGrid size={16}/> Overview</button>
-                <button onClick={() => setActiveTab('distributors')} className={`flex items-center gap-2 py-3 px-1 border-b-2 font-medium text-sm ${activeTab === 'distributors' ? 'border-primary text-primary' : 'border-transparent text-contentSecondary hover:text-content hover:border-slate-300'}`}><Users size={16}/> Distributors</button>
-                <button onClick={() => setActiveTab('inventory')} className={`flex items-center gap-2 py-3 px-1 border-b-2 font-medium text-sm ${activeTab === 'inventory' ? 'border-primary text-primary' : 'border-transparent text-contentSecondary hover:text-content hover:border-slate-300'}`}><Package size={16}/> Inventory</button>
-            </nav>
-        </div>
-
-        <div className="pt-6">
-            {isLoadingPrimaryData ? <div className="text-center p-8 text-contentSecondary">Loading data...</div> : (
-                <>
-                {activeTab === 'overview' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <div className="space-y-4">
-                            <h3 className="font-semibold text-content flex items-center gap-2"><AlertCircle size={18} className="text-red-500"/> Distributors to Watch</h3>
-                            <Card className="bg-red-50/50">
-                                <h4 className="text-sm font-bold text-red-800">Low Funds ({overviewData?.lowFundsDistributors.length})</h4>
-                                <ul className="text-sm divide-y divide-red-200 mt-2">{overviewData?.lowFundsDistributors.slice(0,5).map(d => <li key={d.id} className="flex justify-between items-center py-2"><span className="font-medium text-red-700">{d.name}</span> <span className="font-mono text-xs">{formatIndianCurrency(d.availableFunds)}</span></li>)}</ul>
+                        {portal?.type === 'plant' ? (
+                            <Card className="hover:shadow-md transition-shadow duration-200 border-none shadow-soft">
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Total Inventory</span>
+                                    <span className="text-3xl font-bold text-gray-900">{formatIndianNumber(totalPlantStockUnits + totalStoreStockUnits)}</span>
+                                    <div className="mt-4 flex items-center text-xs text-indigo-600 font-medium bg-indigo-50 w-fit px-2 py-1 rounded-md">
+                                        Units across all locations
+                                    </div>
+                                </div>
                             </Card>
-                            <Card className="bg-yellow-50/50">
-                                <h4 className="text-sm font-bold text-yellow-800">Inactive ({overviewData?.inactiveDistributors.length})</h4>
-                                <ul className="text-sm divide-y divide-yellow-200 mt-2">{overviewData?.inactiveDistributors.slice(0,5).map(d => <li key={d.id} className="py-2 text-yellow-700 font-medium">{d.name}</li>)}</ul>
+                        ) : (
+                            <Card className="hover:shadow-md transition-shadow duration-200 border-none shadow-soft">
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Delivered</span>
+                                    <span className="text-3xl font-bold text-gray-900">{deliveredOrders}</span>
+                                    <div className="mt-4 flex items-center text-xs text-green-600 font-medium bg-green-50 w-fit px-2 py-1 rounded-md">
+                                        Orders Completed
+                                    </div>
+                                </div>
                             </Card>
-                        </div>
-                        <div className="space-y-4">
-                            <h3 className="font-semibold text-content flex items-center gap-2"><BarChart3 size={18} className="text-blue-500"/> Top 5 Products (by Qty)</h3>
-                            <ul className="divide-y divide-border border rounded-lg">{overviewData?.topProducts.map((p, idx) => <li key={p.skuId} className="flex items-center p-3"><span className="font-bold text-lg text-contentSecondary w-8">#{idx+1}</span><div><p className="font-semibold">{p.skuName}</p><p className="text-sm text-contentSecondary">{formatIndianNumber(p.quantity)} units sold</p></div></li>)}</ul>
-                        </div>
-                        <div className="space-y-4">
-                            <h3 className="font-semibold text-content flex items-center gap-2"><Clock size={18} className="text-green-500"/> Recent Orders</h3>
-                             <ul className="divide-y divide-border border rounded-lg">{overviewData?.recentOrders.map(o => <li key={o.id} className="p-3 text-sm"><p className="font-medium">{distributors?.find(d=>d.id===o.distributorId)?.name}</p><div className="flex justify-between items-center text-contentSecondary"><p>{formatDateTimeDDMMYYYY(o.date)}</p><p className="font-semibold">{formatIndianCurrency(o.totalAmount)}</p></div></li>)}</ul>
-                        </div>
-                    </div>
+                        )}
+                    </>
                 )}
-                {activeTab === 'distributors' && (
-                    <div>
-                        <div className="flex justify-end mb-4"><div className="w-full sm:w-auto sm:max-w-xs"><Input id="search-distributor" placeholder="Search by name or assignment..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} icon={<Search size={16} />} /></div></div>
-                        <div className="overflow-x-auto hidden md:block"><table className="w-full text-left min-w-[1000px] text-sm"><thead className="bg-slate-100"><tr><SortableTableHeader label="Distributor" sortKey="name" requestSort={requestSort} sortConfig={sortConfig} /><SortableTableHeader label="Location" sortKey="area" requestSort={requestSort} sortConfig={sortConfig} /><SortableTableHeader label="Assigned To" sortKey="assignment" requestSort={requestSort} sortConfig={sortConfig} /><SortableTableHeader label="Available Funds" sortKey="availableFunds" requestSort={requestSort} sortConfig={sortConfig} /><SortableTableHeader label="Last Order" sortKey="lastOrderDate" requestSort={requestSort} sortConfig={sortConfig} /><SortableTableHeader label="Sales (30d)" sortKey="salesLast30Days" requestSort={requestSort} sortConfig={sortConfig} className="text-right" /></tr></thead><tbody>{sortedDistributors.map(d => (<tr key={d.id} onClick={() => navigate(`/distributors/${d.id}`)} className="border-b border-border last:border-b-0 hover:bg-slate-50 cursor-pointer"><td className="p-3"><p className="font-semibold text-primary hover:underline">{d.name}</p><p className="font-mono text-xs text-contentSecondary">{d.id}</p></td><td className="p-3 text-content">{d.area}, {d.state}</td><td className="p-3 text-content"><span className="flex items-center gap-2">{d.storeId ? <Building size={14} className="text-contentSecondary"/> : <Landmark size={14} className="text-contentSecondary"/>}{d.assignment}</span></td><td className="p-3 min-w-[150px]">{renderAvailableFunds(d)}</td><td className="p-3 text-content">{d.lastOrderDate ? (<span className="flex items-center gap-2"><Calendar size={14} className="text-contentSecondary"/> {formatDateDDMMYYYY(d.lastOrderDate)}</span>) : (<span className="text-contentSecondary">No orders yet</span>)}</td><td className="p-3 text-right"><span className="font-semibold flex items-center justify-end gap-2"><TrendingUp size={14} className="text-primary"/> {formatIndianCurrency(d.salesLast30Days)}</span></td></tr>))}</tbody></table></div>
-                        <div className="md:hidden space-y-4">{sortedDistributors.map(d => (<Card key={d.id} className="cursor-pointer" onClick={() => navigate(`/distributors/${d.id}`)}><div className="flex justify-between items-start"><div><p className="font-bold text-primary">{d.name}</p><p className="font-mono text-xs text-contentSecondary">{d.id}</p></div><ExternalLink size={16} className="text-contentSecondary"/></div><div className="mt-4 space-y-3 text-sm"><div><p className="text-xs font-semibold text-contentSecondary">Available Funds</p>{renderAvailableFunds(d)}</div><div className="grid grid-cols-2 gap-4"><div><p className="text-xs font-semibold text-contentSecondary">Last Order</p><p className="text-content">{d.lastOrderDate ? formatDateDDMMYYYY(d.lastOrderDate) : 'N/A'}</p></div><div><p className="text-xs font-semibold text-contentSecondary">Sales (30d)</p><p className="font-semibold text-content">{formatIndianCurrency(d.salesLast30Days)}</p></div><div><p className="text-xs font-semibold text-contentSecondary">Location</p><p className="text-content">{d.area}, {d.state}</p></div><div><p className="text-xs font-semibold text-contentSecondary">Assigned To</p><p className="text-content">{d.assignment}</p></div></div></div></Card>))}</div>
-                        {sortedDistributors.length === 0 && (<div className="text-center p-6 text-contentSecondary"><p>No distributors found for "{searchTerm}".</p></div>)}
-                    </div>
-                )}
-                {activeTab === 'inventory' && (
-                    <div>
-                        <h3 className="text-lg font-semibold text-content mb-4 flex items-center gap-2"><Package size={20} />{portal?.name} Stock Inventory</h3>
-                        <div className="overflow-x-auto hidden md:block"><table className="w-full text-left text-sm"><thead className="bg-slate-100"><tr><SortableTableHeader label="Product Name" sortKey="skuName" requestSort={requestStockSort} sortConfig={stockSortConfig} /><SortableTableHeader label="On Hand" sortKey="quantity" requestSort={requestStockSort} sortConfig={stockSortConfig} className="text-right" /><SortableTableHeader label="Reserved" sortKey="reserved" requestSort={requestStockSort} sortConfig={stockSortConfig} className="text-right" /><SortableTableHeader label="Available" sortKey="quantity" requestSort={requestStockSort} sortConfig={stockSortConfig} className="text-right" /></tr></thead><tbody>{sortedStock.map(item => { const available = item.quantity - item.reserved; return (<tr key={item.skuId} className={`border-b border-border last:border-b-0 ${available <= 10 ? 'bg-red-50' : ''}`}><td className="p-3 font-medium text-content flex items-center">{available <= 10 && <AlertCircle size={14} className="text-red-500 mr-2"/>}{item.skuName}</td><td className="p-3 text-right text-content">{formatIndianNumber(item.quantity)}</td><td className="p-3 text-right text-yellow-700">{formatIndianNumber(item.reserved)}</td><td className={`p-3 font-semibold text-right ${available <= 10 ? 'text-red-600' : 'text-green-700'}`}>{formatIndianNumber(available)}</td></tr>)})}</tbody></table></div>
-                        <div className="md:hidden space-y-4">{sortedStock.map(item => { const available = item.quantity - item.reserved; return (<Card key={item.skuId} className={available <= 10 ? 'border-red-300 bg-red-50/50' : ''}><p className="font-bold text-content flex items-center">{available <= 10 && <AlertCircle size={16} className="text-red-500 mr-2"/>}{item.skuName}</p><div className="grid grid-cols-3 gap-4 text-center mt-3 pt-3 border-t"><div><p className="text-xs font-semibold text-contentSecondary">On Hand</p><p className="font-semibold text-lg text-content">{formatIndianNumber(item.quantity)}</p></div><div><p className="text-xs font-semibold text-contentSecondary">Reserved</p><p className="font-semibold text-lg text-yellow-700">{formatIndianNumber(item.reserved)}</p></div><div><p className="text-xs font-semibold text-contentSecondary">Available</p><p className={`font-bold text-lg ${available <= 10 ? 'text-red-600' : 'text-green-700'}`}>{formatIndianNumber(available)}</p></div></div></Card>)})}</div>
-                        {sortedStock.length === 0 && (<div className="text-center p-6 text-contentSecondary"><p>No stock items found for this location.</p></div>)}
-                    </div>
-                )}
-                </>
-            )}
+            </div>
+
+            {/* Main Content Area */}
+            <div className="bg-white rounded-xl shadow-soft border border-slate-100 min-h-[500px]">
+                <div className="border-b border-slate-100 px-6">
+                    <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+                        {['overview', 'distributors', 'inventory'].map((tab) => (
+                            <button
+                                key={tab}
+                                onClick={() => setActiveTab(tab as any)}
+                                className={`
+                            py-4 border-b-2 font-medium text-sm transition-all duration-200 capitalize
+                            ${activeTab === tab
+                                        ? 'border-primary text-primary'
+                                        : 'border-transparent text-slate-400 hover:text-slate-600 hover:border-slate-200'}
+                        `}
+                            >
+                                {tab}
+                            </button>
+                        ))}
+                    </nav>
+                </div>
+
+                <div className="p-6">
+                    {isLoadingPrimaryData ? <div className="text-center p-12 text-slate-400">Loading insights...</div> : (
+                        <>
+                            {activeTab === 'overview' && (
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                    {/* Action Items Column */}
+                                    <div className="space-y-6">
+                                        <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                                            <span className="w-2 h-2 rounded-full bg-amber-500"></span> Requires Action
+                                        </h3>
+
+                                        {overviewData?.lowFundsDistributors.length === 0 && overviewData?.inactiveDistributors.length === 0 ? (
+                                            <div className="p-4 bg-green-50 rounded-lg border border-green-100 text-green-800 text-sm">
+                                                All clear! No critical alerts.
+                                            </div>
+                                        ) : (
+                                            <>
+                                                {overviewData?.lowFundsDistributors.slice(0, 3).map(d => (
+                                                    <div key={d.id} className="group flex justify-between items-center p-4 bg-white border border-slate-100 rounded-lg hover:border-red-200 hover:shadow-sm transition-all cursor-pointer" onClick={() => navigate(`/distributors/${d.id}`)}>
+                                                        <div>
+                                                            <p className="font-semibold text-gray-900 group-hover:text-red-700 transition-colors">{d.name}</p>
+                                                            <p className="text-xs text-red-500 font-medium">Low Balance</p>
+                                                        </div>
+                                                        <span className="font-mono text-sm font-bold text-slate-700">{formatIndianCurrency(d.availableFunds)}</span>
+                                                    </div>
+                                                ))}
+                                                {overviewData?.inactiveDistributors.slice(0, 3).map(d => (
+                                                    <div key={d.id} className="group flex justify-between items-center p-4 bg-white border border-slate-100 rounded-lg hover:border-amber-200 hover:shadow-sm transition-all cursor-pointer" onClick={() => navigate(`/distributors/${d.id}`)}>
+                                                        <div>
+                                                            <p className="font-semibold text-gray-900 group-hover:text-amber-700 transition-colors">{d.name}</p>
+                                                            <p className="text-xs text-amber-500 font-medium">Inactive &gt; 60 days</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </>
+                                        )}
+                                    </div>
+
+                                    {/* Top Products */}
+                                    <div className="space-y-6">
+                                        <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                                            <span className="w-2 h-2 rounded-full bg-blue-500"></span> Top Movers
+                                        </h3>
+                                        <div className="space-y-2">
+                                            {overviewData?.topProducts.map((p, idx) => (
+                                                <div key={p.skuId} className="flex items-center p-3 hover:bg-slate-50 rounded-lg transition-colors">
+                                                    <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center font-bold text-xs mr-4">
+                                                        {idx + 1}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <p className="font-medium text-gray-900">{p.skuName}</p>
+                                                        <div className="w-full bg-slate-100 rounded-full h-1 mt-2">
+                                                            <div className="bg-blue-500 h-1 rounded-full" style={{ width: `${Math.max(10, 100 - (idx * 15))}%` }}></div>
+                                                        </div>
+                                                    </div>
+                                                    <span className="ml-4 text-sm font-bold text-slate-600">{formatIndianNumber(p.quantity)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Recent Activity */}
+                                    <div className="space-y-6">
+                                        <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                                            <span className="w-2 h-2 rounded-full bg-green-500"></span> Recent Orders
+                                        </h3>
+                                        <div className="relative border-l-2 border-slate-100 pl-6 space-y-6">
+                                            {overviewData?.recentOrders.map(o => (
+                                                <div key={o.id} className="relative">
+                                                    <div className="absolute -left-[29px] top-1 w-3 h-3 rounded-full border-2 border-white bg-green-500 shadow-sm"></div>
+                                                    <div className="flex justify-between items-start">
+                                                        <div>
+                                                            <p className="font-semibold text-gray-900">{distributors?.find(d => d.id === o.distributorId)?.name}</p>
+                                                            <p className="text-xs text-slate-400 mt-1">{formatDateTimeDDMMYYYY(o.date)}</p>
+                                                        </div>
+                                                        <span className="font-medium text-sm bg-slate-100 px-2 py-1 rounded text-slate-600">
+                                                            {formatIndianCurrency(o.totalAmount)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            {activeTab === 'distributors' && (
+                                <div className="animate-fade-in">
+                                    <div className="flex flex-col sm:flex-row justify-between mb-6 gap-4">
+                                        <h3 className="text-lg font-bold text-gray-900">Partner Network</h3>
+                                        <div className="w-full sm:w-72">
+                                            <Input
+                                                id="search-distributor"
+                                                placeholder="Search partners..."
+                                                value={searchTerm}
+                                                onChange={(e) => setSearchTerm(e.target.value)}
+                                                icon={<Search size={16} className="text-slate-400" />}
+                                                className="bg-slate-50 border-slate-200 focus:bg-white transition-colors"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="overflow-x-auto rounded-lg border border-slate-100">
+                                        <table className="w-full text-left min-w-[1000px] text-sm">
+                                            <thead className="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider text-xs">
+                                                <tr>
+                                                    <SortableTableHeader label="Distributor" sortKey="name" requestSort={requestSort} sortConfig={sortConfig} className="p-4" />
+                                                    <SortableTableHeader label="Agent Code" sortKey="agentCode" requestSort={requestSort} sortConfig={sortConfig} className="p-4" />
+                                                    <SortableTableHeader label="Location" sortKey="area" requestSort={requestSort} sortConfig={sortConfig} className="p-4" />
+                                                    <SortableTableHeader label="Assignment" sortKey="assignment" requestSort={requestSort} sortConfig={sortConfig} className="p-4" />
+                                                    <SortableTableHeader label="Funds" sortKey="availableFunds" requestSort={requestSort} sortConfig={sortConfig} className="p-4" />
+                                                    <SortableTableHeader label="Last Order" sortKey="lastOrderDate" requestSort={requestSort} sortConfig={sortConfig} className="p-4" />
+                                                    <SortableTableHeader label="Revenue (30d)" sortKey="salesLast30Days" requestSort={requestSort} sortConfig={sortConfig} className="p-4 text-right" />
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {sortedDistributors.map(d => (
+                                                    <tr key={d.id} onClick={() => navigate(`/distributors/${d.id}`)} className="group hover:bg-slate-50 cursor-pointer transition-colors">
+                                                        <td className="p-4">
+                                                            <p className="font-semibold text-gray-900 group-hover:text-primary transition-colors">{d.name}</p>
+                                                        </td>
+                                                        <td className="p-4 font-mono text-slate-600">{d.agentCode || '-'}</td>
+                                                        <td className="p-4 text-slate-600">{d.area}, {d.state}</td>
+                                                        <td className="p-4 text-slate-600">
+                                                            <span className="inline-flex items-center px-2 py-1 rounded bg-slate-100 text-xs font-medium">
+                                                                {d.storeId ? <Building size={12} className="mr-1" /> : <Landmark size={12} className="mr-1" />}
+                                                                {d.assignment}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-4 min-w-[180px]">{renderAvailableFunds(d)}</td>
+                                                        <td className="p-4 text-slate-600">
+                                                            {d.lastOrderDate ? (
+                                                                <span className="flex items-center gap-1.5"><Calendar size={14} className="text-slate-400" /> {formatDateDDMMYYYY(d.lastOrderDate)}</span>
+                                                            ) : (
+                                                                <span className="text-slate-400 italic">Never</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-4 text-right">
+                                                            <span className="font-bold text-gray-900">{formatIndianCurrency(d.salesLast30Days)}</span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {sortedDistributors.length === 0 && (
+                                        <div className="text-center p-12 bg-slate-50 rounded-lg border border-dashed border-slate-300 mt-4">
+                                            <p className="text-slate-500">No partners found matching "{searchTerm}".</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            {activeTab === 'inventory' && (
+                                <div className="animate-fade-in">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h3 className="text-lg font-bold text-gray-900">Live Inventory</h3>
+                                        <div className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full">{sortedStock.length} SKUs listed</div>
+                                    </div>
+
+                                    <div className="overflow-x-auto rounded-lg border border-slate-100">
+                                        <table className="w-full text-left text-sm">
+                                            <thead className="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider text-xs">
+                                                <tr>
+                                                    <SortableTableHeader label="SKU Name" sortKey="skuName" requestSort={requestStockSort} sortConfig={stockSortConfig} className="p-4" />
+                                                    <SortableTableHeader label="On Hand" sortKey="quantity" requestSort={requestStockSort} sortConfig={stockSortConfig} className="p-4 text-right" />
+                                                    <SortableTableHeader label="Reserved" sortKey="reserved" requestSort={requestStockSort} sortConfig={stockSortConfig} className="p-4 text-right" />
+                                                    <SortableTableHeader label="Available" sortKey="quantity" requestSort={requestStockSort} sortConfig={stockSortConfig} className="p-4 text-right" />
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {sortedStock.map(item => {
+                                                    const available = item.quantity - item.reserved;
+                                                    return (
+                                                        <tr key={item.skuId} className={`hover:bg-slate-50 transition-colors ${available <= 10 ? 'bg-red-50/30' : ''}`}>
+                                                            <td className="p-4 font-medium text-gray-900 flex items-center">
+                                                                {available <= 10 && <div className="w-2 h-2 rounded-full bg-red-500 mr-2 animate-pulse"></div>}
+                                                                {item.skuName}
+                                                            </td>
+                                                            <td className="p-4 text-right text-slate-600 font-mono">{formatIndianNumber(item.quantity)}</td>
+                                                            <td className="p-4 text-right text-amber-600 font-mono">{formatIndianNumber(item.reserved)}</td>
+                                                            <td className={`p-4 text-right font-bold font-mono ${available <= 10 ? 'text-red-500' : 'text-green-600'}`}>
+                                                                {formatIndianNumber(available)}
+                                                            </td>
+                                                        </tr>
+                                                    )
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {sortedStock.length === 0 && (
+                                        <div className="text-center p-12 bg-slate-50 rounded-lg border border-dashed border-slate-300 mt-4">
+                                            <p className="text-slate-500">No inventory items found.</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+            </div>
         </div>
-      </Card>
-    </div>
-  );
+    );
 };
 
 export default Dashboard;

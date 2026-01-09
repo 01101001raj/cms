@@ -4,15 +4,18 @@ import Card from './common/Card';
 import Button from './common/Button';
 import Input from './common/Input';
 import Select from './common/Select';
-import { Plus, Edit, Trash2, Package, DollarSign, Info } from 'lucide-react';
+import { Plus, Edit, Trash2, Package, DollarSign, Info, History } from 'lucide-react';
 import { formatIndianCurrency } from '../utils/formatting';
 import { api } from '../services/api';
+import { useAuth } from '../hooks/useAuth';
 
 const ProductManagement: React.FC = () => {
+    const { currentUser } = useAuth();
     const [products, setProducts] = useState<Product[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
     const [loading, setLoading] = useState(false);
+    const [activeTab, setActiveTab] = useState<'active' | 'discontinued'>('active');
 
     // Form state
     const [formData, setFormData] = useState<Partial<Product>>({
@@ -25,7 +28,6 @@ const ProductManagement: React.FC = () => {
         cartonSize: 0,
         hsnCode: '',
         gstPercentage: 18,
-        cogsPerCarton: 0,
         priceNetCarton: 0,
         priceGrossCarton: 0,
         price: 0,
@@ -35,6 +37,30 @@ const ProductManagement: React.FC = () => {
     useEffect(() => {
         loadProducts();
     }, []);
+
+    // Auto-generate SKU based on product details
+    useEffect(() => {
+        // Don't auto-generate if editing existing product
+        if (editingProduct) return;
+
+        if (formData.category && formData.unitSize && formData.unitsPerCarton) {
+            // Generate category abbreviation (first 3-4 letters, uppercase, remove spaces)
+            const categoryAbbr = formData.category
+                .replace(/[^a-zA-Z0-9]/g, '')
+                .substring(0, 4)
+                .toUpperCase();
+
+            // Convert unit size to display format
+            const unitSizeDisplay = formData.productType === ProductType.VOLUME
+                ? `${formData.unitSize >= 1000 ? formData.unitSize / 1000 : formData.unitSize}${formData.unitSize >= 1000 ? 'L' : 'ML'}`
+                : `${formData.unitSize >= 1000 ? formData.unitSize / 1000 : formData.unitSize}${formData.unitSize >= 1000 ? 'KG' : 'G'}`;
+
+            // Generate SKU: CATEGORY-SIZE-UNITS
+            const sku = `${categoryAbbr}-${unitSizeDisplay}-${formData.unitsPerCarton}PK`;
+
+            setFormData(prev => ({ ...prev, id: sku }));
+        }
+    }, [formData.category, formData.unitSize, formData.unitsPerCarton, formData.productType, editingProduct]);
 
     // Auto-calculate carton size when units or unit size changes
     useEffect(() => {
@@ -84,7 +110,6 @@ const ProductManagement: React.FC = () => {
                 cartonSize: 0,
                 hsnCode: '',
                 gstPercentage: 18,
-                cogsPerCarton: 0,
                 priceNetCarton: 0,
                 priceGrossCarton: 0,
                 price: 0,
@@ -101,20 +126,20 @@ const ProductManagement: React.FC = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!currentUser) return;
+
         try {
             setLoading(true);
             if (editingProduct) {
-                // await api.updateSKU(formData as Product);
-                alert('Update functionality coming soon!');
+                await api.updateSKU(formData as Product, currentUser.role);
             } else {
-                // await api.createSKU(formData as Product);
-                alert('Create functionality coming soon!');
+                await api.addSKU(formData as Product, currentUser.role);
             }
             handleCloseModal();
-            loadProducts();
+            await loadProducts();
         } catch (error) {
             console.error('Failed to save product:', error);
-            alert('Failed to save product');
+            alert(`Failed to save product: ${error instanceof Error ? error.message : 'Unknown error'}`);
         } finally {
             setLoading(false);
         }
@@ -122,14 +147,15 @@ const ProductManagement: React.FC = () => {
 
     const handleDelete = async (productId: string) => {
         if (!window.confirm('Are you sure you want to delete this product?')) return;
+        if (!currentUser) return;
+
         try {
             setLoading(true);
-            // await api.deleteSKU(productId);
-            alert('Delete functionality coming soon!');
-            loadProducts();
+            await api.deleteSKU(productId, currentUser.role);
+            await loadProducts();
         } catch (error) {
             console.error('Failed to delete product:', error);
-            alert('Failed to delete product');
+            alert(`Failed to delete product: ${error instanceof Error ? error.message : 'Unknown error'}`);
         } finally {
             setLoading(false);
         }
@@ -137,14 +163,40 @@ const ProductManagement: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <div>
-                    <h1 className="text-3xl font-bold text-content">Product Management</h1>
-                    <p className="text-contentSecondary mt-1">Manage your product catalog with detailed specifications</p>
+            <div>
+                <div className="flex justify-between items-center mb-4">
+                    <div>
+                        <h1 className="text-3xl font-bold text-content">Product Management</h1>
+                        <p className="text-contentSecondary mt-1">Manage your product catalog with detailed specifications</p>
+                    </div>
+                    {activeTab === 'active' && (
+                        <Button onClick={() => handleOpenModal()}>
+                            <Plus size={20} /> Add New Product
+                        </Button>
+                    )}
                 </div>
-                <Button onClick={() => handleOpenModal()}>
-                    <Plus size={20} /> Add New Product
-                </Button>
+
+                {/* Tabs */}
+                <div className="flex border-b border-border">
+                    <button
+                        onClick={() => setActiveTab('active')}
+                        className={`px-4 py-2 font-medium transition-colors ${activeTab === 'active'
+                            ? 'text-primary border-b-2 border-primary'
+                            : 'text-contentSecondary hover:text-content'
+                            }`}
+                    >
+                        Active Products
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('discontinued')}
+                        className={`px-4 py-2 font-medium transition-colors flex items-center gap-2 ${activeTab === 'discontinued'
+                            ? 'text-primary border-b-2 border-primary'
+                            : 'text-contentSecondary hover:text-content'
+                            }`}
+                    >
+                        <History size={16} /> Discontinued Products
+                    </button>
+                </div>
             </div>
 
             <Card>
@@ -159,7 +211,6 @@ const ProductManagement: React.FC = () => {
                                 <th className="p-3 text-right font-semibold text-contentSecondary">Carton Size</th>
                                 <th className="p-3 text-right font-semibold text-contentSecondary">HSN Code</th>
                                 <th className="p-3 text-right font-semibold text-contentSecondary">GST %</th>
-                                <th className="p-3 text-right font-semibold text-contentSecondary">COGS</th>
                                 <th className="p-3 text-right font-semibold text-contentSecondary">Net Price</th>
                                 <th className="p-3 text-right font-semibold text-contentSecondary">Gross Price</th>
                                 <th className="p-3 text-left font-semibold text-contentSecondary">Status</th>
@@ -169,55 +220,59 @@ const ProductManagement: React.FC = () => {
                         <tbody>
                             {products.length === 0 ? (
                                 <tr>
-                                    <td colSpan={12} className="p-8 text-center text-contentSecondary">
+                                    <td colSpan={11} className="p-8 text-center text-contentSecondary">
                                         <Package size={48} className="mx-auto mb-2 opacity-50" />
                                         <p>No products found. Add your first product to get started.</p>
                                     </td>
                                 </tr>
                             ) : (
-                                products.map((product) => (
-                                    <tr key={product.id} className="border-b border-border hover:bg-background">
-                                        <td className="p-3 font-mono text-sm">{product.id}</td>
-                                        <td className="p-3 font-medium">{product.name}</td>
-                                        <td className="p-3 text-sm">{product.category || '-'}</td>
-                                        <td className="p-3 text-sm">{product.productType || '-'}</td>
-                                        <td className="p-3 text-right text-sm">
-                                            {product.cartonSize ? `${product.cartonSize} ${product.productType === ProductType.VOLUME ? 'L' : 'kg'}` : '-'}
-                                        </td>
-                                        <td className="p-3 text-right text-sm font-mono">{product.hsnCode || '-'}</td>
-                                        <td className="p-3 text-right text-sm">{product.gstPercentage}%</td>
-                                        <td className="p-3 text-right text-sm">{formatIndianCurrency(product.cogsPerCarton || 0)}</td>
-                                        <td className="p-3 text-right text-sm">{formatIndianCurrency(product.priceNetCarton || 0)}</td>
-                                        <td className="p-3 text-right font-medium">{formatIndianCurrency(product.priceGrossCarton || product.price)}</td>
-                                        <td className="p-3">
-                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                product.status === ProductStatus.ACTIVE ? 'bg-green-100 text-green-800' :
-                                                product.status === ProductStatus.DISCONTINUED ? 'bg-red-100 text-red-800' :
-                                                'bg-yellow-100 text-yellow-800'
-                                            }`}>
-                                                {product.status || 'Active'}
-                                            </span>
-                                        </td>
-                                        <td className="p-3">
-                                            <div className="flex justify-center gap-2">
-                                                <button
-                                                    onClick={() => handleOpenModal(product)}
-                                                    className="p-1 hover:bg-background rounded"
-                                                    title="Edit"
-                                                >
-                                                    <Edit size={16} className="text-primary" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(product.id)}
-                                                    className="p-1 hover:bg-background rounded"
-                                                    title="Delete"
-                                                >
-                                                    <Trash2 size={16} className="text-red-600" />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
+                                products
+                                    .filter(product =>
+                                        activeTab === 'active'
+                                            ? product.status !== ProductStatus.DISCONTINUED
+                                            : product.status === ProductStatus.DISCONTINUED
+                                    )
+                                    .map((product) => (
+                                        <tr key={product.id} className="border-b border-border hover:bg-background">
+                                            <td className="p-3 font-mono text-sm">{product.id}</td>
+                                            <td className="p-3 font-medium">{product.name}</td>
+                                            <td className="p-3 text-sm">{product.category || '-'}</td>
+                                            <td className="p-3 text-sm">{product.productType || '-'}</td>
+                                            <td className="p-3 text-right text-sm">
+                                                {product.cartonSize ? `${product.cartonSize} ${product.productType === ProductType.VOLUME ? 'L' : 'kg'}` : '-'}
+                                            </td>
+                                            <td className="p-3 text-right text-sm font-mono">{product.hsnCode || '-'}</td>
+                                            <td className="p-3 text-right text-sm">{product.gstPercentage}%</td>
+                                            <td className="p-3 text-right text-sm">{formatIndianCurrency(product.priceNetCarton || 0)}</td>
+                                            <td className="p-3 text-right font-medium">{formatIndianCurrency(product.priceGrossCarton || product.price)}</td>
+                                            <td className="p-3">
+                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${product.status === ProductStatus.ACTIVE ? 'bg-green-100 text-green-800' :
+                                                        product.status === ProductStatus.DISCONTINUED ? 'bg-red-100 text-red-800' :
+                                                            'bg-yellow-100 text-yellow-800'
+                                                    }`}>
+                                                    {product.status || 'Active'}
+                                                </span>
+                                            </td>
+                                            <td className="p-3">
+                                                <div className="flex justify-center gap-2">
+                                                    <button
+                                                        onClick={() => handleOpenModal(product)}
+                                                        className="p-1 hover:bg-background rounded"
+                                                        title="Edit"
+                                                    >
+                                                        <Edit size={16} className="text-primary" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(product.id)}
+                                                        className="p-1 hover:bg-background rounded"
+                                                        title="Delete"
+                                                    >
+                                                        <Trash2 size={16} className="text-red-600" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
                             )}
                         </tbody>
                     </table>
@@ -247,12 +302,11 @@ const ProductManagement: React.FC = () => {
                                     </h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <Input
-                                            label="Product SKU/ID *"
+                                            label="Product SKU/ID (Auto-generated)"
                                             value={formData.id}
-                                            onChange={(e) => setFormData({ ...formData, id: e.target.value })}
-                                            placeholder="WB-1L-12PK"
-                                            required
-                                            disabled={!!editingProduct}
+                                            placeholder="Auto-generated from product details"
+                                            readOnly
+                                            className="bg-background"
                                         />
                                         <Input
                                             label="Product Name *"
@@ -342,16 +396,6 @@ const ProductManagement: React.FC = () => {
                                             required
                                         />
                                         <Input
-                                            label="COGS per Carton (₹) *"
-                                            type="number"
-                                            value={formData.cogsPerCarton}
-                                            onChange={(e) => setFormData({ ...formData, cogsPerCarton: parseFloat(e.target.value) || 0 })}
-                                            placeholder="80.00"
-                                            min="0"
-                                            step="0.01"
-                                            required
-                                        />
-                                        <Input
                                             label="Gross Price per Carton (₹) *"
                                             type="number"
                                             value={formData.priceGrossCarton}
@@ -381,34 +425,6 @@ const ProductManagement: React.FC = () => {
                                     </div>
                                 </div>
 
-                                {/* Profit Margin Calculation Display */}
-                                {formData.cogsPerCarton > 0 && formData.priceNetCarton > 0 && (
-                                    <div className="bg-primary/10 p-4 rounded-lg">
-                                        <h4 className="font-semibold mb-2">Profit Analysis</h4>
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                                            <div>
-                                                <p className="text-contentSecondary">COGS</p>
-                                                <p className="font-semibold">{formatIndianCurrency(formData.cogsPerCarton)}</p>
-                                            </div>
-                                            <div>
-                                                <p className="text-contentSecondary">Net Price</p>
-                                                <p className="font-semibold">{formatIndianCurrency(formData.priceNetCarton)}</p>
-                                            </div>
-                                            <div>
-                                                <p className="text-contentSecondary">Gross Profit</p>
-                                                <p className="font-semibold text-green-600">
-                                                    {formatIndianCurrency(formData.priceNetCarton - formData.cogsPerCarton)}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-contentSecondary">Margin %</p>
-                                                <p className="font-semibold text-green-600">
-                                                    {(((formData.priceNetCarton - formData.cogsPerCarton) / formData.priceNetCarton) * 100).toFixed(2)}%
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
 
                             <div className="p-6 border-t border-border flex justify-end gap-3">

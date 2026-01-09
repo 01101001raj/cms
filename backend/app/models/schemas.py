@@ -24,6 +24,7 @@ class TransactionType(str, Enum):
     TRANSFER_PAYMENT = "TRANSFER_PAYMENT"
     ORDER_REFUND = "ORDER_REFUND"
     RETURN_CREDIT = "RETURN_CREDIT"
+    JOURNAL_VOUCHER = "JOURNAL_VOUCHER"
 
 
 class NotificationType(str, Enum):
@@ -144,19 +145,49 @@ class DistributorCreate(BaseModel):
     storeId: Optional[str] = None
 
 
+class ProductType(str, Enum):
+    VOLUME = "Volume"
+    MASS = "Mass"
+
+
+class ProductStatus(str, Enum):
+    ACTIVE = "Active"
+    DISCONTINUED = "Discontinued"
+    OUT_OF_STOCK = "Out of Stock"
+
+
 class SKU(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True, ser_json_by_alias=True)
+
     id: str
     name: str
-    price: float
-    hsnCode: str
-    gstPercentage: float
+    category: Optional[str] = None
+    product_type: ProductType = Field(default=ProductType.VOLUME, serialization_alias="productType", validation_alias="product_type")
+    units_per_carton: int = Field(default=1, serialization_alias="unitsPerCarton", validation_alias="units_per_carton")
+    unit_size: float = Field(default=1000, serialization_alias="unitSize", validation_alias="unit_size")
+    carton_size: float = Field(default=0, serialization_alias="cartonSize", validation_alias="carton_size")
+    hsn_code: str = Field(serialization_alias="hsnCode", validation_alias="hsn_code")
+    gst_percentage: float = Field(serialization_alias="gstPercentage", validation_alias="gst_percentage")
+    price_net_carton: float = Field(default=0, serialization_alias="priceNetCarton", validation_alias="price_net_carton")
+    price_gross_carton: float = Field(default=0, serialization_alias="priceGrossCarton", validation_alias="price_gross_carton")
+    price: float  # Backward compatibility
+    status: ProductStatus = Field(default=ProductStatus.ACTIVE)
 
 
 class SKUCreate(BaseModel):
+    id: str  # SKU is provided by frontend (auto-generated)
     name: str
-    price: float
+    category: Optional[str] = None
+    productType: ProductType = ProductType.VOLUME
+    unitsPerCarton: int = 1
+    unitSize: float = 1000
+    cartonSize: float = 0
     hsnCode: str
     gstPercentage: float
+    priceNetCarton: float = 0
+    priceGrossCarton: float = 0
+    price: float  # Backward compatibility
+    status: ProductStatus = ProductStatus.ACTIVE
 
 
 class Scheme(BaseModel):
@@ -215,12 +246,15 @@ class Order(BaseModel):
     status: OrderStatus
     placed_by_exec_id: str = Field(serialization_alias="placedByExecId", validation_alias="placed_by_exec_id")
     delivered_date: Optional[str] = Field(default=None, serialization_alias="deliveredDate", validation_alias="delivered_date")
+    approval_granted_by: Optional[str] = Field(default=None, serialization_alias="approvalGrantedBy", validation_alias="approval_granted_by")
+    shipment_size: float = Field(default=0, serialization_alias="shipmentSize", validation_alias="shipment_size")
 
 
 class OrderCreate(BaseModel):
     distributorId: str
     items: List[OrderItemCreate]
     username: str
+    approvalGrantedBy: Optional[str] = None  # Manager who approved negative balance
     # totalAmount removed - backend will calculate it from items
 
 
@@ -241,6 +275,8 @@ class WalletTransaction(BaseModel):
     initiated_by: str = Field(serialization_alias="initiatedBy", validation_alias="initiated_by")
 
 
+
+
 class WalletRecharge(BaseModel):
     distributorId: Optional[str] = None
     storeId: Optional[str] = None
@@ -249,6 +285,16 @@ class WalletRecharge(BaseModel):
     paymentMethod: str
     remarks: str
     date: str
+
+
+class JournalVoucher(BaseModel):
+    distributorId: Optional[str] = None
+    storeId: Optional[str] = None
+    amount: float  # Can be positive (credit) or negative (debit)
+    username: str
+    remarks: str
+    date: str
+
 
 
 class PriceTier(BaseModel):
@@ -347,8 +393,8 @@ class Company(BaseModel):
 
 class CompanyCreate(BaseModel):
     name: str
-    addressLine1: str
-    addressLine2: str
+    address_line1: str = Field(alias="addressLine1")
+    address_line2: Optional[str] = Field(None, alias="addressLine2")
     city: str
     state: str
     pincode: str
@@ -356,7 +402,7 @@ class CompanyCreate(BaseModel):
     email: str
     gstin: str
     pan: str
-    bankName: Optional[str] = None
-    accountNumber: Optional[str] = None
-    ifscCode: Optional[str] = None
-    logoUrl: Optional[str] = None
+    bank_name: Optional[str] = Field(None, alias="bankName")
+    account_number: Optional[str] = Field(None, alias="accountNumber")
+    ifsc_code: Optional[str] = Field(None, alias="ifscCode")
+    logo_url: Optional[str] = Field(None, alias="logoUrl")

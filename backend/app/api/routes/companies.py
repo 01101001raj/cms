@@ -9,7 +9,7 @@ router = APIRouter(prefix="/companies", tags=["Companies"])
 
 @router.get("", response_model=List[Company])
 async def get_companies(
-    supabase: Client = Depends(get_supabase_client)
+    supabase: Client = Depends(get_supabase_admin_client)
 ):
     """
     Get all companies
@@ -23,14 +23,14 @@ async def get_companies(
 
 @router.get("/primary", response_model=Company)
 async def get_primary_company(
-    supabase: Client = Depends(get_supabase_client)
+    supabase: Client = Depends(get_supabase_admin_client)
 ):
     """
     Get the primary company (first one in the database)
     This is used for invoices and documents
     """
     try:
-        response = supabase.table("companies").select("*").limit(1).execute()
+        response = supabase.table("companies").select("*").order("created_at", desc=True).limit(1).execute()
 
         if not response.data or len(response.data) == 0:
             raise HTTPException(status_code=404, detail="No company found. Please add company details first.")
@@ -45,7 +45,7 @@ async def get_primary_company(
 @router.get("/{company_id}", response_model=Company)
 async def get_company_by_id(
     company_id: str,
-    supabase: Client = Depends(get_supabase_client)
+    supabase: Client = Depends(get_supabase_admin_client)
 ):
     """
     Get company by ID

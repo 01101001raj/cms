@@ -1,8 +1,8 @@
 // services/api/orderService.ts
 import { SupabaseClient } from '@supabase/supabase-js';
 import {
-  Order, OrderStatus, OrderItem, EnrichedOrderItem, InvoiceData, OrderReturn, ReturnStatus,
-  EnrichedOrderReturn, PortalState, Distributor, SKU, Scheme, PriceTierItem, StockMovementType, TransactionType
+    Order, OrderStatus, OrderItem, EnrichedOrderItem, InvoiceData, OrderReturn, ReturnStatus,
+    EnrichedOrderReturn, PortalState, Distributor, SKU, Scheme, PriceTierItem, StockMovementType, TransactionType
 } from '../../types';
 
 // Helper function to handle Supabase responses
@@ -35,9 +35,9 @@ const calculateOrderMetrics = (
     skus.forEach(sku => {
         const tierPrice = tierItemsMap.get(sku.id);
         const effectivePrice = tierPrice !== undefined ? tierPrice : sku.price;
-        priceMap.set(sku.id, { 
+        priceMap.set(sku.id, {
             price: Number(effectivePrice) || 0, // Ensure price is a number
-            hasTierPrice: tierPrice !== undefined 
+            hasTierPrice: tierPrice !== undefined
         });
     });
 
@@ -57,17 +57,17 @@ const calculateOrderMetrics = (
             }
         }
     }
-    
+
     const today = new Date(orderDate).toISOString().split('T')[0];
     const skuIdSet = new Set(skus.map(s => s.id));
-    
+
     const applicableSchemesRaw: Scheme[] = [];
     for (const scheme of allSchemes) {
         if (
-            scheme.startDate > today || 
-            scheme.endDate < today || 
+            scheme.startDate > today ||
+            scheme.endDate < today ||
             scheme.stoppedDate ||
-            !scheme.buySkuId || 
+            !scheme.buySkuId ||
             !scheme.getSkuId ||
             !skuIdSet.has(scheme.buySkuId) ||
             !skuIdSet.has(scheme.getSkuId)
@@ -174,9 +174,9 @@ export const createOrderService = (supabase: SupabaseClient) => ({
         const items = handleResponse({ data, error });
         return (items || []).map((i: any) => ({ id: i.id, orderId: i.order_id, skuId: i.sku_id, quantity: i.quantity, unitPrice: i.unit_price, isFreebie: i.is_freebie, returnedQuantity: i.returned_quantity }));
     },
-    
+
     // WRITE operations
-    async placeOrder(distributorId: string, items: { skuId: string; quantity: number }[], username: string, portal: PortalState | null): Promise<Order> {
+    async placeOrder(distributorId: string, items: { skuId: string; quantity: number }[], username: string, portal: PortalState | null, approvalGrantedBy?: string): Promise<Order> {
         if (!portal) throw new Error("Portal context is required.");
         if (!distributorId) throw new Error("Distributor ID is required.");
         if (!items || items.length === 0) throw new Error("Order must contain at least one item.");
@@ -194,7 +194,22 @@ export const createOrderService = (supabase: SupabaseClient) => ({
             supabase.from('schemes').select('*').then(res => res.data || []),
         ]);
 
-        const skus: SKU[] = (rawSkus || []).map((s: any) => ({ id: s.id, name: s.name, price: s.price, hsnCode: s.hsn_code, gstPercentage: s.gst_percentage }));
+        const skus: SKU[] = (rawSkus || []).map((s: any) => ({
+            id: s.id,
+            name: s.name,
+            category: s.category,
+            productType: s.product_type,
+            unitsPerCarton: s.units_per_carton,
+            unitSize: s.unit_size,
+            cartonSize: s.carton_size,
+            hsnCode: s.hsn_code,
+            gstPercentage: s.gst_percentage,
+            cogsPerCarton: s.cogs_per_carton || 0,
+            priceNetCarton: s.price_net_carton,
+            priceGrossCarton: s.price_gross_carton,
+            price: s.price,
+            status: s.status
+        }));
         const allTierItems: PriceTierItem[] = (rawAllTierItems || []).map((i: any) => ({ tierId: i.tier_id, skuId: i.sku_id, price: i.price }));
         const allSchemes: Scheme[] = (rawSchemes || []).map((s: any) => ({
             id: s.id, description: s.description, buySkuId: s.buy_sku_id, buyQuantity: s.buy_quantity,
@@ -221,7 +236,8 @@ export const createOrderService = (supabase: SupabaseClient) => ({
                     unitPrice: item.unitPrice,
                     isFreebie: item.isFreebie
                 })),
-                username
+                username,
+                approvalGrantedBy
             }),
         });
 
@@ -257,7 +273,7 @@ export const createOrderService = (supabase: SupabaseClient) => ({
             supabase.from('schemes').select('*').then(res => res.data || []),
         ]);
 
-        const skus: SKU[] = (rawSkus || []).map((s: any) => ({ id: s.id, name: s.name, price: s.price, hsnCode: s.hsn_code, gstPercentage: s.gst_percentage }));
+        const skus: SKU[] = (rawSkus || []).map((s: any) => ({ id: s.id, name: s.name, price: s.price, hsnCode: s.hsn_code, gstPercentage: s.gst_percentage } as SKU));
         const allTierItems: PriceTierItem[] = (rawAllTierItems || []).map((i: any) => ({ tierId: i.tier_id, skuId: i.sku_id, price: i.price }));
         const allSchemes: Scheme[] = (rawSchemes || []).map((s: any) => ({
             id: s.id, description: s.description, buySkuId: s.buy_sku_id, buyQuantity: s.buy_quantity,
@@ -303,26 +319,26 @@ export const createOrderService = (supabase: SupabaseClient) => ({
 
         const distData = Array.isArray(orderData.distributors) ? orderData.distributors[0] : orderData.distributors;
         const locationId = distData?.store_id || 'plant';
-        
+
         if (portal.type === 'store' && locationId !== portal.id) throw new Error('Permission denied.');
 
         const { data: orderItems, error: itemsError } = await supabase.from('order_items').select('*').eq('order_id', orderId);
         if (itemsError) throw itemsError;
-        
+
         for (const item of orderItems) {
             let stockItemQuery = supabase.from('stock_items').select('quantity, reserved').eq('sku_id', item.sku_id).eq('location_id', locationId);
             const { data: stockItem, error: stockError } = await stockItemQuery.single();
 
             if (stockError && stockError.code !== 'PGRST116') throw stockError;
-    
+
             const currentQuantity = Number(stockItem?.quantity) || 0;
             const currentReserved = Number(stockItem?.reserved) || 0;
             const newQuantity = currentQuantity - Number(item.quantity);
             const newReserved = currentReserved - Number(item.quantity);
-    
+
             const { error: updateError } = await supabase.from('stock_items').upsert({ location_id: locationId, sku_id: item.sku_id, quantity: newQuantity, reserved: newReserved < 0 ? 0 : newReserved }, { onConflict: 'location_id,sku_id' });
             if (updateError) throw updateError;
-    
+
             await supabase.from('stock_ledger').insert({
                 sku_id: item.sku_id, quantity_change: -item.quantity, balance_after: newQuantity, type: StockMovementType.SALE,
                 location_id: locationId, notes: `Order ${orderId}`, initiated_by: username,
@@ -336,7 +352,7 @@ export const createOrderService = (supabase: SupabaseClient) => ({
         const { data: order, error: orderError } = await supabase.from('orders').select('*, distributors(*)').eq('id', orderId).single();
         if (orderError) throw orderError;
         if (order.status !== OrderStatus.PENDING) throw new Error("Only pending orders can be deleted.");
-        
+
         const distributorData = Array.isArray(order.distributors) ? order.distributors[0] : order.distributors;
         if (!distributorData) throw new Error('Distributor not found for this order.');
 
@@ -348,9 +364,9 @@ export const createOrderService = (supabase: SupabaseClient) => ({
         const stockToUnreserve = new Map<string, number>();
         orderItems.forEach(item => stockToUnreserve.set(item.sku_id, (stockToUnreserve.get(item.sku_id) || 0) + item.quantity));
         const skuIds = Array.from(stockToUnreserve.keys());
-        if(skuIds.length > 0) {
+        if (skuIds.length > 0) {
             let currentStockQuery = supabase.from('stock_items').select('sku_id, reserved').in('sku_id', skuIds).eq('location_id', locationId);
-            
+
             const { data: currentStockItems } = await currentStockQuery;
             const currentReservedMap = new Map((currentStockItems || []).map(i => [i.sku_id, i.reserved]));
             const stockUpdates = skuIds.map(skuId => {
@@ -374,16 +390,16 @@ export const createOrderService = (supabase: SupabaseClient) => ({
         // 1. Fetch all necessary data
         const { data: order, error: orderError } = await supabase.from('orders').select('distributor_id, date').eq('id', orderId).single();
         if (orderError) throw orderError;
-    
+
         const { data: distributor, error: distError } = await supabase.from('distributors').select('*').eq('id', order.distributor_id).single();
         if (distError) throw distError;
-    
+
         const { data: originalOrderItems, error: oiError } = await supabase.from('order_items').select('*, skus(id, name, price, gst_percentage)').eq('order_id', orderId);
         if (oiError) throw oiError;
-    
+
         const { data: allSchemes, error: schemeError } = await supabase.from('schemes').select('*');
         if (schemeError) throw schemeError;
-    
+
         // 2. Calculate Gross Credit
         let grossCreditAmount = 0;
         for (const returnItem of items) {
@@ -394,7 +410,7 @@ export const createOrderService = (supabase: SupabaseClient) => ({
                 grossCreditAmount += itemSubtotal + gst;
             }
         }
-    
+
         // 3. Calculate Clawback
         const originalPaidQuantities = new Map<string, number>();
         const originalFreeQuantities = new Map<string, number>();
@@ -405,29 +421,29 @@ export const createOrderService = (supabase: SupabaseClient) => ({
                 originalPaidQuantities.set(item.sku_id, (originalPaidQuantities.get(item.sku_id) || 0) + item.quantity);
             }
         });
-    
+
         const returnedQuantities = new Map<string, number>();
         items.forEach(item => {
             returnedQuantities.set(item.skuId, (returnedQuantities.get(item.skuId) || 0) + item.quantity);
         });
-    
+
         const newNetPaidQuantities = new Map(originalPaidQuantities);
         returnedQuantities.forEach((qty, skuId) => {
             newNetPaidQuantities.set(skuId, (newNetPaidQuantities.get(skuId) || 0) - qty);
         });
-        
+
         const orderDate = new Date(order.date).toISOString().split('T')[0];
         const applicableSchemes = (allSchemes || []).filter(s => {
-            if(s.start_date > orderDate || s.end_date < orderDate || s.stopped_date) return false;
+            if (s.start_date > orderDate || s.end_date < orderDate || s.stopped_date) return false;
             return s.is_global || (s.store_id === distributor.store_id) || (s.distributor_id === distributor.id && distributor.has_special_schemes)
         });
-    
+
         const schemesByBuySku = applicableSchemes.reduce((acc, scheme) => {
             if (!acc[scheme.buy_sku_id]) acc[scheme.buy_sku_id] = [];
             acc[scheme.buy_sku_id].push(scheme);
             return acc;
         }, {} as Record<string, any[]>);
-    
+
         const newEntitledFreebies = new Map<string, number>();
         newNetPaidQuantities.forEach((netQty, skuId) => {
             const relevantSchemes = schemesByBuySku[skuId];
@@ -441,7 +457,7 @@ export const createOrderService = (supabase: SupabaseClient) => ({
                 });
             }
         });
-    
+
         let clawbackValue = 0;
         originalFreeQuantities.forEach((originalQty, skuId) => {
             const newQty = newEntitledFreebies.get(skuId) || 0;
@@ -454,10 +470,10 @@ export const createOrderService = (supabase: SupabaseClient) => ({
                 }
             }
         });
-    
+
         // 4. Calculate Final Credit and Insert
         const finalCreditAmount = grossCreditAmount - clawbackValue;
-    
+
         const { data: newReturn, error: insertError } = await supabase.from('order_returns').insert({
             order_id: orderId,
             distributor_id: order.distributor_id,
@@ -467,34 +483,34 @@ export const createOrderService = (supabase: SupabaseClient) => ({
             total_credit_amount: finalCreditAmount,
             items
         }).select().single();
-        
+
         if (insertError) throw insertError;
-        
+
         return { ...newReturn, orderId: newReturn.order_id, distributorId: newReturn.distributor_id, initiatedBy: newReturn.initiated_by, initiatedDate: newReturn.initiated_date, totalCreditAmount: newReturn.total_credit_amount };
     },
-    
+
     async getReturns(status: ReturnStatus, portalState: PortalState | null): Promise<EnrichedOrderReturn[]> {
         const { data: returnsData, error: returnsError } = await supabase.from('order_returns').select('*').eq('status', status);
         let returns = handleResponse({ data: returnsData, error: returnsError });
         if (!returns || returns.length === 0) return [];
-    
+
         const [distributorsData, skusData] = await Promise.all([
             supabase.from('distributors').select('id, name').then(res => res.data || []),
             supabase.from('skus').select('id, name').then(res => res.data || [])
         ]);
         const distributorMap = new Map((distributorsData || []).map(d => [d.id, d.name]));
         const skuMap = new Map((skusData || []).map(s => [s.id, s.name]));
-    
+
         const orderIds = [...new Set(returns.map(r => r.order_id))];
         const { data: orderItemsData } = await supabase.from('order_items').select('order_id, sku_id, unit_price').in('order_id', orderIds);
         const priceMap = new Map((orderItemsData || []).map(item => [`${item.order_id}-${item.sku_id}`, item.unit_price]));
-    
+
         if (portalState?.type === 'store' && portalState.id) {
             const { data: distIds } = await supabase.from('distributors').select('id').eq('store_id', portalState.id);
             const distributorIdsInPortal = new Set((distIds || []).map(d => d.id));
             returns = returns.filter((r: any) => distributorIdsInPortal.has(r.distributor_id));
         }
-    
+
         return returns.map((r: any) => ({
             id: r.id, orderId: r.order_id, distributorId: r.distributor_id, status: r.status, initiatedBy: r.initiated_by,
             initiatedDate: r.initiated_date, confirmedBy: r.confirmed_by, confirmedDate: r.confirmed_date, remarks: r.remarks,
@@ -511,14 +527,14 @@ export const createOrderService = (supabase: SupabaseClient) => ({
         const { data: ret, error: retError } = await supabase.from('order_returns').select('*').eq('id', returnId).single();
         if (retError || !ret) throw new Error("Return request not found.");
         if (ret.status !== ReturnStatus.PENDING) throw new Error("This return has already been processed.");
-    
+
         const { data: distributor, error: distError } = await supabase.from('distributors').select('wallet_balance, store_id').eq('id', ret.distributor_id).single();
         if (distError) throw distError;
-    
+
         // 2. Use pre-calculated final credit amount
         const finalCreditAmount = ret.total_credit_amount;
         const finalRemarks = `Credit for return ${returnId}.`;
-    
+
         // 3. Update Wallet
         const newWalletBalance = distributor.wallet_balance + finalCreditAmount;
         await supabase.from('distributors').update({ wallet_balance: newWalletBalance }).eq('id', ret.distributor_id);
@@ -531,14 +547,14 @@ export const createOrderService = (supabase: SupabaseClient) => ({
             remarks: finalRemarks,
             initiated_by: username,
         });
-    
+
         const locationId = distributor.store_id || 'plant';
-    
+
         // 4. Update stock and order items
         for (const item of ret.items) {
             const { data: orderItemsForSku, error: oiError } = await supabase.from('order_items').select('id, quantity, returned_quantity').eq('order_id', ret.order_id).eq('sku_id', item.skuId);
             if (oiError) throw oiError;
-    
+
             let quantityToReturn = item.quantity;
             for (const oi of (orderItemsForSku || [])) {
                 if (quantityToReturn <= 0) break;
@@ -546,11 +562,11 @@ export const createOrderService = (supabase: SupabaseClient) => ({
                 if (availableToReturnOnThisLine <= 0) continue;
                 const amountToReturnFromThisLine = Math.min(quantityToReturn, availableToReturnOnThisLine);
                 const newReturnedQuantity = oi.returned_quantity + amountToReturnFromThisLine;
-    
+
                 await supabase.from('order_items').update({ returned_quantity: newReturnedQuantity }).eq('id', oi.id);
                 quantityToReturn -= amountToReturnFromThisLine;
             }
-            
+
             const { data: stockItem, error: stockError } = await supabase.from('stock_items').select('quantity').eq('sku_id', item.skuId).eq('location_id', locationId).single();
             if (stockError && stockError.code !== 'PGRST116') throw stockError;
             const currentQuantity = stockItem?.quantity || 0;
@@ -570,11 +586,11 @@ export const createOrderService = (supabase: SupabaseClient) => ({
                 });
             }
         }
-    
+
         // 5. Finalize return status
         await supabase.from('order_returns').update({ status: ReturnStatus.CONFIRMED, confirmed_by: username, confirmed_date: new Date().toISOString() }).eq('id', returnId);
     },
-    
+
     async getInvoiceData(orderId: string): Promise<InvoiceData | null> {
         const { data: order, error: orderError } = await supabase.from('orders').select('*').eq('id', orderId).single();
         if (orderError) return null;
@@ -584,11 +600,11 @@ export const createOrderService = (supabase: SupabaseClient) => ({
 
         const { data: items, error: itemsError } = await supabase.from('order_items').select('*, skus(*)').eq('order_id', orderId);
         if (itemsError) return null;
-        
+
         return {
             order: { ...order, distributorId: order.distributor_id, totalAmount: order.total_amount, placedByExecId: order.placed_by_exec_id },
-            distributor: { ...distributor, creditLimit: distributor.credit_limit, walletBalance: distributor.wallet_balance, dateAdded: distributor.date_added, priceTierId: distributor.price_tier_id, hasSpecialSchemes: distributor.has_special_schemes, billingAddress: distributor.billing_address, asmName: distributor.asm_name, executiveName: distributor.executive_name, storeId: distributor.store_id },
-            items: (items || []).map((i: any) => ({ ...i, orderId: i.order_id, skuId: i.sku_id, unitPrice: i.unit_price, isFreebie: i.is_freebie, returnedQuantity: i.returned_quantity, skuName: i.skus.name, hsnCode: i.skus.hsn_code, gstPercentage: i.skus.gst_percentage, basePrice: i.skus.price }))
+            distributor: { ...distributor, creditLimit: distributor.credit_limit, walletBalance: distributor.wallet_balance, dateAdded: distributor.date_added, priceTierId: distributor.price_tier_id, hasSpecialSchemes: distributor.has_special_schemes, billingAddress: distributor.billing_address, asmName: distributor.asm_name, executiveName: distributor.executive_name, storeId: distributor.store_id, agentCode: distributor.agent_code },
+            items: (items || []).map((i: any) => ({ ...i, orderId: i.order_id, skuId: i.sku_id, unitPrice: i.unit_price, isFreebie: i.is_freebie, returnedQuantity: i.returned_quantity, skuName: i.skus.name, hsnCode: i.skus.hsn_code, gstPercentage: i.skus.gst_percentage, basePrice: i.skus.price, productType: i.skus.product_type, cartonSize: i.skus.carton_size, priceNetCarton: i.skus.price_net_carton }))
         };
     }
 });

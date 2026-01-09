@@ -46,8 +46,9 @@ export interface ApiService {
 
   // SKUs
   getSKUs(): Promise<SKU[]>;
-  addSKU(skuData: Omit<SKU, 'id'>, role: UserRole): Promise<SKU>;
+  addSKU(skuData: SKU, role: UserRole): Promise<SKU>;
   updateSKU(skuData: SKU, role: UserRole): Promise<SKU>;
+  deleteSKU(skuId: string, role: UserRole): Promise<void>;
 
   // Schemes
   getSchemes(portalState: PortalState | null): Promise<Scheme[]>;
