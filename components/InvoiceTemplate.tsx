@@ -10,7 +10,6 @@ interface InvoiceTemplateProps {
 
 const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ invoiceData, billingDetails, printRef }) => {
     const { order, distributor, items } = invoiceData;
-    const currencyOptionsWhole = { minimumFractionDigits: 0, maximumFractionDigits: 0 };
     const currencyOptionsDecimal = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
 
     // Use net price for proper GST calculation
@@ -32,11 +31,15 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ invoiceData, billingD
         return acc;
     }, { totalCgstRaw: 0, totalSgstRaw: 0 });
 
-    // Round all amounts to nearest whole number
+    // Round all amounts to nearest whole number for display
     const subtotal = Math.round(subtotalRaw);
     const totalCgst = Math.round(totalCgstRaw);
     const totalSgst = Math.round(totalSgstRaw);
-    const grandTotal = subtotal + totalCgst + totalSgst;
+
+    // Calculate Grand Total: Ceiling of the raw sum (as per requirement 1499.3 -> 1500)
+    const grandTotalRaw = subtotalRaw + totalCgstRaw + totalSgstRaw;
+    const grandTotal = Math.ceil(grandTotalRaw);
+    const roundOff = grandTotal - (subtotal + totalCgst + totalSgst);
 
     const totalPaidQty = items.filter(i => !i.isFreebie).reduce((sum, i) => sum + i.quantity, 0);
     const totalFreeQty = items.filter(i => i.isFreebie).reduce((sum, i) => sum + i.quantity, 0);
@@ -126,26 +129,29 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ invoiceData, billingD
                             const taxAmount = Math.round(taxableValueRaw * (item.gstPercentage / 100));
                             const lineItemTotal = taxableValue + taxAmount;
 
+                            // Double check freebie status - if price is 0, treat as freebie for display
+                            const isItemFreebie = item.isFreebie || (item.unitPrice === 0 && !item.isFreebie);
+
                             return (
                                 <tr key={item.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
                                     <td className="py-3 text-center text-slate-400">{index + 1}</td>
                                     <td className="py-3">
                                         <p className="font-medium text-slate-900">{item.skuName}</p>
-                                        <p className="text-xs text-slate-500">HSN: {item.hsnCode} {item.isFreebie && <span className="text-green-600 font-bold ml-2">FREE</span>}</p>
+                                        <p className="text-xs text-slate-500">HSN: {item.hsnCode} {isItemFreebie && <span className="text-green-600 font-bold ml-2">FREE</span>}</p>
                                     </td>
                                     <td className="py-3 text-center font-medium text-slate-700">{item.quantity}</td>
                                     <td className="py-3 text-right text-slate-700">
-                                        {!item.isFreebie ? formatIndianCurrency(netPrice, currencyOptionsDecimal) : '-'}
+                                        {!isItemFreebie ? formatIndianCurrency(netPrice, currencyOptionsDecimal) : '-'}
                                     </td>
                                     <td className="py-3 text-right text-slate-700">
-                                        {formatIndianCurrency(taxableValue, currencyOptionsWhole)}
+                                        {formatIndianCurrency(taxableValue, currencyOptionsDecimal)}
                                     </td>
                                     <td className="py-3 text-center text-slate-500 text-xs">
                                         <div>{item.gstPercentage}%</div>
                                         <div className="text-[10px] opacity-75">CGST+SGST</div>
                                     </td>
                                     <td className="py-3 text-right font-bold text-slate-900">
-                                        {formatIndianCurrency(lineItemTotal, currencyOptionsWhole)}
+                                        {formatIndianCurrency(lineItemTotal, currencyOptionsDecimal)}
                                     </td>
                                 </tr>
                             );
@@ -159,15 +165,16 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ invoiceData, billingD
                 <div className="w-80 space-y-3">
                     <div className="flex justify-between text-sm text-slate-600">
                         <span>Subtotal (Taxable)</span>
-                        <span className="font-medium text-slate-900">{formatIndianCurrency(subtotal, currencyOptionsWhole)}</span>
+                        <span className="font-medium text-slate-900">{formatIndianCurrency(subtotal, currencyOptionsDecimal)}</span>
                     </div>
                     <div className="flex justify-between text-sm text-slate-600 border-b border-slate-200 pb-2">
                         <span>Total Tax (CGST + SGST)</span>
-                        <span className="font-medium text-slate-900">{formatIndianCurrency(totalCgst + totalSgst, currencyOptionsWhole)}</span>
+                        <span className="font-medium text-slate-900">{formatIndianCurrency(totalCgst + totalSgst, currencyOptionsDecimal)}</span>
                     </div>
+
                     <div className="flex justify-between items-center bg-slate-900 text-white p-3 rounded shadow-sm">
                         <span className="font-bold text-sm uppercase tracking-wide">Grand Total</span>
-                        <span className="font-bold text-xl">{formatIndianCurrency(grandTotal, currencyOptionsWhole)}</span>
+                        <span className="font-bold text-xl">{formatIndianCurrency(grandTotal, currencyOptionsDecimal)}</span>
                     </div>
                     <p className="text-xs text-slate-500 text-right italic mt-2">
                         {numberToWordsInRupees(grandTotal)}
