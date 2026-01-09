@@ -48,23 +48,25 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ invoiceData, billingD
         <div ref={printRef} className="bg-white text-slate-900 font-sans" style={{ width: '210mm', minHeight: '297mm', padding: '15mm', boxSizing: 'border-box' }}>
             {/* Header */}
             <header className="flex justify-between items-start border-b-2 border-slate-900 pb-6 mb-8">
-                <div className="flex flex-col gap-1">
+                <div className="flex items-start gap-6">
                     {/* Logo */}
-                    <img src="/nrich_logo.png" alt="Company Logo" className="h-20 w-auto object-contain mb-4" />
+                    <img src="/nrich_logo.png" alt="Company Logo" className="h-20 w-auto object-contain" />
 
-                    {/* Company Info */}
-                    <div className="mb-4">
-                        <h1 className="text-2xl font-bold text-slate-900 uppercase tracking-tight">
-                            {billingName !== '[Your Company Name]' ? billingName : <span className="text-red-500">[Configure Company]</span>}
-                        </h1>
-                        <p className="text-sm text-slate-500 font-medium">GSTIN: {billingDetails?.gstin || 'N/A'}</p>
-                    </div>
+                    <div className="flex flex-col">
+                        {/* Company Info */}
+                        <div className="mb-2">
+                            <h1 className="text-2xl font-bold text-slate-900 uppercase tracking-tight">
+                                {billingName !== '[Your Company Name]' ? billingName : <span className="text-red-500">[Configure Company]</span>}
+                            </h1>
+                            <p className="text-sm text-slate-500 font-medium">GSTIN: {billingDetails?.gstin || 'N/A'}</p>
+                        </div>
 
-                    <div className="text-xs text-slate-600 space-y-0.5 ml-1">
-                        <p>{billingDetails?.addressLine1}</p>
-                        {billingDetails?.addressLine2 && <p>{billingDetails.addressLine2}</p>}
-                        <p>Email: {billingDetails?.email}</p>
-                        <p>Phone: {billingDetails?.phone}</p>
+                        <div className="text-xs text-slate-600 space-y-0.5">
+                            <p>{billingDetails?.addressLine1}</p>
+                            {billingDetails?.addressLine2 && <p>{billingDetails.addressLine2}</p>}
+                            <p>Email: {billingDetails?.email}</p>
+                            <p>Phone: {billingDetails?.phone}</p>
+                        </div>
                     </div>
                 </div>
 
