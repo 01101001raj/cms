@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import Loader from './common/Loader';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import Card from './common/Card';
 import Select from './common/Select';
@@ -117,14 +118,14 @@ const RechargeWallet: React.FC = () => {
       const [distributorData, storeData, allTxs] = await Promise.all([
         api.getDistributors(portal),
         api.getStores(),
-        api.getAllWalletTransactions(portal)
+        api.getAllWalletTransactions(portal, dateRange)
       ]);
       setDistributors(distributorData);
       setStores(storeData);
       setAllTransactions(allTxs);
     };
     fetchData();
-  }, [portal]);
+  }, [portal, dateRange]);
 
   const filteredRecharges = useMemo(() => {
     return allTransactions
@@ -212,7 +213,8 @@ const RechargeWallet: React.FC = () => {
       <div className="lg:col-span-3">
         <Card>
           <h2 className="text-2xl font-bold mb-6 text-content">Recharge Wallet</h2>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {isLoading && <div className="absolute inset-0 bg-white/50 z-10 flex items-center justify-center rounded-xl"><Loader /></div>}
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 relative">
             <div>
               <label className="block text-sm font-medium text-contentSecondary mb-1">Account Type</label>
               {currentUser?.role === UserRole.PLANT_ADMIN ? (
@@ -463,28 +465,28 @@ const RechargeWallet: React.FC = () => {
             />
           </div>
           {filteredRecharges.length > 0 ? (
-            <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
+            <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
               {filteredRecharges.map(tx => (
-                <div key={tx.id} className="p-3 bg-slate-50 rounded-lg text-sm border border-border">
+                <div key={tx.id} className="p-3 bg-slate-50 rounded-lg text-sm border border-slate-100 hover:bg-slate-100 transition-colors">
                   <div className="flex justify-between items-start">
                     <div>
-                      <p className="font-semibold text-content truncate pr-2">{tx.accountName}</p>
+                      <p className="font-semibold text-slate-800 truncate pr-2">{tx.accountName}</p>
                       <span className={`text-xs px-2 py-0.5 rounded-full mt-1 inline-block ${tx.accountType === 'Distributor' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}`}>{tx.accountType}</span>
                     </div>
                     <p className="font-bold text-green-600 shrink-0">{formatIndianCurrency(tx.amount)}</p>
                   </div>
-                  <div className="flex justify-between items-center text-xs text-contentSecondary mt-2">
+                  <div className="flex justify-between items-center text-xs text-slate-500 mt-2">
                     <span className="font-medium">{tx.paymentMethod}</span>
                     <span className="shrink-0">{formatDateTimeDDMMYYYY(tx.date)}</span>
                   </div>
                   {tx.remarks && (
-                    <p className="text-xs text-contentSecondary mt-1 italic">"{tx.remarks}"</p>
+                    <p className="text-xs text-slate-500 mt-1 italic">"{tx.remarks}"</p>
                   )}
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-sm text-contentSecondary text-center py-8">No recharges found for the selected date range.</p>
+            <p className="text-sm text-slate-500 text-center py-8">No recharges found for the selected date range.</p>
           )}
         </Card>
       </div>

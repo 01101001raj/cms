@@ -60,7 +60,7 @@ const Sidebar: React.FC<{ isOpen: boolean; closeSidebar: () => void; }> = ({ isO
             <div className="flex flex-col justify-center h-auto py-6 px-8 border-b border-slate-800/50 bg-slate-900/50">
                 <div className="flex items-center gap-3">
                     <div className="flex flex-col items-start">
-                        <img src="/nrich_logo.png" alt="NRICH Logo" className="h-20 w-auto object-contain mb-1" />
+                        <img src="/logo.png" alt="NRICH Logo" className="h-20 w-auto object-contain mb-1" />
                         <span className="text-[10px] text-slate-500 font-semibold tracking-widest uppercase ml-1">Enterprise Edition</span>
                     </div>
                 </div>

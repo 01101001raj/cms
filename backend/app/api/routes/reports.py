@@ -49,8 +49,10 @@ async def get_customer_statement(
             traceback.print_exc()
 
 
-        # Get all orders in date range
-        orders_response = supabase.table("orders").select("id, date, total_amount, shipment_size").eq("distributor_id", distributor_id).gte("date", start_date).lte("date", end_date).order("date").execute()
+        # Get all orders in date range with items
+        orders_response = supabase.table("orders").select(
+            "id, date, total_amount, shipment_size, order_items(sku_id, quantity)"
+        ).eq("distributor_id", distributor_id).gte("date", start_date).lte("date", end_date).order("date").execute()
         orders = orders_response.data or []
 
         # Get all wallet transactions in date range
@@ -72,10 +74,24 @@ async def get_customer_statement(
 
             shipment_size = order.get("shipment_size", 0)
             
+            # Format product summary
+            product_summary = ""
+            if order.get("order_items"):
+                items_summary = []
+                for item in order["order_items"]:
+                    # User requested SKU ID and Quantity
+                    sku_id = item.get("sku_id", "Unknown SKU")
+                    items_summary.append(f"{sku_id} ({item['quantity']})")
+                product_summary = ", ".join(items_summary)
+            
+            particulars = f"Order #{order['id']}"
+            if product_summary:
+                particulars += f" - {product_summary}"
+
             all_rows.append({
                 "datetime": order["date"],  # Full datetime for sorting
                 "date": order["date"][:10],  # YYYY-MM-DD for display
-                "particulars": f"Order #{order['id']}",  # Show full order number
+                "particulars": particulars,  # Show order number + items
                 "sale_amount": order["total_amount"],
                 "collection": 0.0,
                 "jv": 0.0,

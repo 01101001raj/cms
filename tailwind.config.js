@@ -10,9 +10,9 @@ export default {
   theme: {
     extend: {
       colors: {
-        'primary': '#4f46e5', // Indigo 600 - Validated safe & accessible
-        'primaryHover': '#4338ca', // Indigo 700
-        'primaryLight': '#e0e7ff', // Indigo 100
+        'primary': '#1157a2', // Brand Color
+        'primaryHover': '#0d4685', // Darker shade of brand color
+        'primaryLight': '#e0e7ff', // Keep light indigo/blue for backgrounds
         'onPrimary': '#ffffff',
 
         'secondary': '#64748b', // Slate 500

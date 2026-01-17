@@ -12,6 +12,7 @@ import { useForm, SubmitHandler, Controller } from 'react-hook-form';
 import Input from './common/Input';
 import Select from './common/Select';
 import { assignableMenuItems } from '../constants';
+import Loader from './common/Loader';
 
 
 const UserModal: React.FC<{ user: User | null, onClose: () => void, onSave: () => void, stores: Store[], allUsers: User[] }> = ({ user, onClose, onSave, stores, allUsers }) => {
@@ -53,7 +54,7 @@ const UserModal: React.FC<{ user: User | null, onClose: () => void, onSave: () =
             setLoading(false);
         }
     };
-    
+
     const availableRoles = () => {
         if (currentUser?.role === UserRole.PLANT_ADMIN) {
             return Object.values(UserRole);
@@ -65,7 +66,7 @@ const UserModal: React.FC<{ user: User | null, onClose: () => void, onSave: () =
     }
 
     return (
-         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4" onClick={onClose}>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4" onClick={onClose}>
             <div className="bg-card rounded-lg shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
                 <div className="p-4 border-b flex justify-between items-center">
                     <h2 className="text-xl font-bold">{user ? 'Edit' : 'Create'} User</h2>
@@ -81,7 +82,7 @@ const UserModal: React.FC<{ user: User | null, onClose: () => void, onSave: () =
                         <Input
                             label={user ? "New Password (optional)" : "Password"}
                             type="password"
-                            {...register('password', { 
+                            {...register('password', {
                                 required: !user ? "Password is required for new users." : false,
                                 minLength: { value: 6, message: "Password must be at least 6 characters" }
                             })}
@@ -95,7 +96,7 @@ const UserModal: React.FC<{ user: User | null, onClose: () => void, onSave: () =
                         >
                             {availableRoles().map(role => <option key={role} value={role}>{role}</option>)}
                         </Select>
-                        
+
                         {watchedRole === UserRole.EXECUTIVE && (
                             <Select
                                 label="Reports to ASM"
@@ -152,7 +153,7 @@ const UserModal: React.FC<{ user: User | null, onClose: () => void, onSave: () =
                             </Select>
                         )}
 
-                         {error && <div className="p-3 bg-red-100 text-red-800 rounded-lg text-sm">{error}</div>}
+                        {error && <div className="p-3 bg-red-100 text-red-800 rounded-lg text-sm">{error}</div>}
                     </div>
                     <div className="p-4 bg-background border-t flex justify-end gap-4">
                         <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
@@ -207,7 +208,7 @@ const UserManagementPage: React.FC = () => {
         setEditingUser(user);
         setIsModalOpen(true);
     };
-    
+
     const canManageUser = (targetUser: User): boolean => {
         if (!currentUser) return false;
         if (currentUser.role === UserRole.PLANT_ADMIN) {
@@ -215,7 +216,7 @@ const UserManagementPage: React.FC = () => {
         }
         if (currentUser.role === UserRole.STORE_ADMIN) {
             return (targetUser.role === UserRole.EXECUTIVE || targetUser.role === UserRole.USER) &&
-                   targetUser.storeId === currentUser.storeId;
+                targetUser.storeId === currentUser.storeId;
         }
         return false;
     };
@@ -233,7 +234,7 @@ const UserManagementPage: React.FC = () => {
             }
         }
     };
-    
+
     const handleSendResetEmail = async (user: User) => {
         setStatusMessage(null);
         if (!window.confirm(`Are you sure you want to send a password reset link to ${user.username}?`)) {
@@ -247,7 +248,7 @@ const UserManagementPage: React.FC = () => {
             setStatusMessage({ type: 'error', text: err instanceof Error ? err.message : "An unknown error occurred." });
         }
     };
-    
+
     const handleSave = () => {
         setIsModalOpen(false);
         setEditingUser(null);
@@ -272,22 +273,22 @@ const UserManagementPage: React.FC = () => {
     };
 
     const { asmGroups, otherUsers, asmUserMap } = useMemo(() => {
-        const asms = users.filter(u => u.role === UserRole.ASM).sort((a,b) => a.username.localeCompare(b.username));
+        const asms = users.filter(u => u.role === UserRole.ASM).sort((a, b) => a.username.localeCompare(b.username));
         const executives = users.filter(u => u.role === UserRole.EXECUTIVE);
         const other = users.filter(u => u.role !== UserRole.ASM && u.role !== UserRole.EXECUTIVE);
         const asmMap = new Map(asms.map(u => [u.id, u.username]));
 
         const groups = asms.map(asm => ({
             asm,
-            executives: executives.filter(exec => exec.asmId === asm.id).sort((a,b) => a.username.localeCompare(b.username))
+            executives: executives.filter(exec => exec.asmId === asm.id).sort((a, b) => a.username.localeCompare(b.username))
         }));
 
         const assignedExecIds = new Set(groups.flatMap(g => g.executives.map(e => e.id)));
         const unassignedExecutives = executives.filter(exec => !assignedExecIds.has(exec.id));
-        
-        return { 
-            asmGroups: groups, 
-            otherUsers: [...other, ...unassignedExecutives].sort((a,b) => a.username.localeCompare(b.username)),
+
+        return {
+            asmGroups: groups,
+            otherUsers: [...other, ...unassignedExecutives].sort((a, b) => a.username.localeCompare(b.username)),
             asmUserMap: asmMap,
         };
     }, [users]);
@@ -300,27 +301,27 @@ const UserManagementPage: React.FC = () => {
         );
     }
 
-    const UserRow: React.FC<{user: User, isSubRow?: boolean}> = ({ user, isSubRow = false }) => (
+    const UserRow: React.FC<{ user: User, isSubRow?: boolean }> = ({ user, isSubRow = false }) => (
         <tr className={`border-b last:border-0 ${isSubRow ? 'bg-slate-50' : 'bg-white'} hover:bg-blue-50`}>
             <td className={`p-3 font-semibold ${isSubRow ? 'pl-12' : ''}`}>{user.username}</td>
             <td className="p-3">{user.role}</td>
             <td className="p-3">
-                {user.role === UserRole.EXECUTIVE && user.asmId ? 
-                    `Reports to ${asmUserMap.get(user.asmId) || 'N/A'}` : 
+                {user.role === UserRole.EXECUTIVE && user.asmId ?
+                    `Reports to ${asmUserMap.get(user.asmId) || 'N/A'}` :
                     getStoreName(user.storeId)
                 }
             </td>
             <td className="p-3 text-right space-x-2">
-                <Button onClick={() => handleSendResetEmail(user)} variant="secondary" size="sm" disabled={!canManageUser(user)} title="Send Password Reset"><KeyRound size={14}/></Button>
-                <Button onClick={() => handleEdit(user)} variant="secondary" size="sm" disabled={!canManageUser(user)}><Edit size={14}/></Button>
-                <Button onClick={() => handleDelete(user)} variant="danger" size="sm" disabled={!canManageUser(user)}><Trash2 size={14}/></Button>
+                <Button onClick={() => handleSendResetEmail(user)} variant="secondary" size="sm" disabled={!canManageUser(user)} title="Send Password Reset"><KeyRound size={14} /></Button>
+                <Button onClick={() => handleEdit(user)} variant="secondary" size="sm" disabled={!canManageUser(user)}><Edit size={14} /></Button>
+                <Button onClick={() => handleDelete(user)} variant="danger" size="sm" disabled={!canManageUser(user)}><Trash2 size={14} /></Button>
             </td>
         </tr>
     );
 
     return (
         <div className="space-y-6">
-             {statusMessage && (
+            {statusMessage && (
                 <div className={`flex items-center p-3 rounded-lg text-sm ${statusMessage.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                     {statusMessage.type === 'success' ? <CheckCircle className="mr-2" /> : <XCircle className="mr-2" />}
                     {statusMessage.text}
@@ -329,18 +330,18 @@ const UserManagementPage: React.FC = () => {
             <Card>
                 <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
                     <h2 className="text-2xl font-bold">Manage Users</h2>
-                    <Button onClick={handleAddNew} className="w-full sm:w-auto"><PlusCircle size={16}/> Add New User</Button>
+                    <Button onClick={handleAddNew} className="w-full sm:w-auto"><PlusCircle size={16} /> Add New User</Button>
                 </div>
                 {error && <div className="p-3 bg-red-100 text-red-800 rounded-lg text-sm">{error}</div>}
-                
+
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                        <thead className="bg-slate-100">
+                        <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-xs h-12 border-b">
                             <tr>
-                                <th className="p-3 text-left font-semibold text-contentSecondary">Username</th>
-                                <th className="p-3 text-left font-semibold text-contentSecondary">Role</th>
-                                <th className="p-3 text-left font-semibold text-contentSecondary">Assignment / Reports To</th>
-                                <th className="p-3 text-right font-semibold text-contentSecondary">Actions</th>
+                                <th className="px-4 py-3 text-left font-semibold text-slate-500">Username</th>
+                                <th className="px-4 py-3 text-left font-semibold text-slate-500">Role</th>
+                                <th className="px-4 py-3 text-left font-semibold text-slate-500">Assignment / Reports To</th>
+                                <th className="px-4 py-3 text-right font-semibold text-slate-500">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -351,16 +352,16 @@ const UserManagementPage: React.FC = () => {
                                         <tr className="border-b last:border-0 bg-blue-50 hover:bg-blue-100/70">
                                             <td className="p-3 font-bold text-blue-800">
                                                 <button onClick={() => toggleAsmExpand(asm.id)} className="flex items-center gap-2 w-full text-left">
-                                                    {isExpanded ? <ChevronDown size={16}/> : <ChevronRight size={16}/>}
+                                                    {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                                                     {asm.username} ({executives.length} Execs)
                                                 </button>
                                             </td>
                                             <td className="p-3 text-blue-800">{asm.role}</td>
                                             <td className="p-3 text-blue-800">{getStoreName(asm.storeId)}</td>
                                             <td className="p-3 text-right space-x-2">
-                                                <Button onClick={() => handleSendResetEmail(asm)} variant="secondary" size="sm" disabled={!canManageUser(asm)} title="Send Password Reset"><KeyRound size={14}/></Button>
-                                                <Button onClick={() => handleEdit(asm)} variant="secondary" size="sm" disabled={!canManageUser(asm)}><Edit size={14}/></Button>
-                                                <Button onClick={() => handleDelete(asm)} variant="danger" size="sm" disabled={!canManageUser(asm)}><Trash2 size={14}/></Button>
+                                                <Button onClick={() => handleSendResetEmail(asm)} variant="secondary" size="sm" disabled={!canManageUser(asm)} title="Send Password Reset"><KeyRound size={14} /></Button>
+                                                <Button onClick={() => handleEdit(asm)} variant="secondary" size="sm" disabled={!canManageUser(asm)}><Edit size={14} /></Button>
+                                                <Button onClick={() => handleDelete(asm)} variant="danger" size="sm" disabled={!canManageUser(asm)}><Trash2 size={14} /></Button>
                                             </td>
                                         </tr>
                                         {isExpanded && executives.map(exec => <UserRow key={exec.id} user={exec} isSubRow />)}
@@ -374,8 +375,8 @@ const UserManagementPage: React.FC = () => {
                     </table>
                 </div>
 
-                {loading && <p className="text-center p-4">Loading users...</p>}
-                {!loading && users.length === 0 && <p className="text-center p-8 text-contentSecondary">No users found.</p>}
+                {loading && <div className="flex justify-center p-12"><Loader text="Loading users..." /></div>}
+                {!loading && users.length === 0 && <p className="text-center p-12 text-slate-400">No users found.</p>}
             </Card>
 
             {isModalOpen && (

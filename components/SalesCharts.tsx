@@ -131,7 +131,7 @@ const SalesCharts: React.FC<SalesChartsProps> = ({
                         <YAxis yAxisId="right" orientation="right" tickFormatter={(value) => formatIndianCurrencyShort(value as number)} />
                         <Tooltip content={<CustomSalesTooltip />} />
                         <Legend />
-                        <Line yAxisId="left" type="monotone" dataKey="sales" stroke="#4f46e5" strokeWidth={2} name="Sales" />
+                        <Line yAxisId="left" type="monotone" dataKey="sales" stroke="#1157a2" strokeWidth={2} name="Sales" />
                         {showAov && (
                             <Line yAxisId="right" type="monotone" dataKey="aov" stroke="#f97316" strokeDasharray="5 5" name="Avg. Order Value" />
                         )}

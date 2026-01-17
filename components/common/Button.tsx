@@ -19,7 +19,7 @@ const Button: React.FC<ButtonProps> = ({ children, variant = 'primary', size = '
   };
 
   const variantClasses = {
-    primary: 'bg-gradient-to-r from-primary to-primaryHover text-white shadow-soft hover:shadow-lg hover:from-primaryHover hover:to-primary focus:ring-primary/50 border border-transparent',
+    primary: 'bg-primary hover:bg-primaryHover text-white shadow-sm hover:shadow-md focus:ring-primary/50 border border-transparent',
     secondary: 'bg-white text-contentSecondary border border-border shadow-sm hover:bg-slate-50 hover:text-primary hover:border-primary/20 focus:ring-primary/50',
     danger: 'bg-white text-danger border border-danger/20 hover:bg-dangerBg focus:ring-danger/50 shadow-sm',
   };

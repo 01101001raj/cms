@@ -9,15 +9,20 @@ import uuid
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
 
+PLANT_LOCATION_ID = "plant"
+
+
 @router.get("", response_model=List[Order])
 async def get_orders(
     portal_type: Optional[str] = Query(None),
     portal_id: Optional[str] = Query(None),
     distributor_id: Optional[str] = Query(None),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
     supabase: Client = Depends(get_supabase_client)
 ):
     """
-    Get all orders, optionally filtered by distributor or portal
+    Get all orders, optionally filtered by distributor, portal, or date range
     """
     try:
         query = supabase.table("orders").select("*")
@@ -31,6 +36,11 @@ async def get_orders(
             dist_ids = [d["id"] for d in dist_response.data]
             if dist_ids:
                 query = query.in_("distributor_id", dist_ids)
+
+        if start_date:
+            query = query.gte("date", start_date)
+        if end_date:
+            query = query.lte("date", end_date)
 
         response = query.order("date", desc=True).execute()
         return response.data
@@ -145,6 +155,23 @@ async def create_order(
                 "is_freebie": item["isFreebie"],
                 "returned_quantity": item["returnedQuantity"]
             }).execute()
+
+        # Reserve stock at Plant
+        for item in order_items:
+            # Check if stock exists
+            existing_stock = supabase.table("stock_items").select("reserved").eq("location_id", PLANT_LOCATION_ID).eq("sku_id", item["skuId"]).execute()
+            
+            if existing_stock.data:
+                new_reserved = existing_stock.data[0]["reserved"] + item["quantity"]
+                supabase.table("stock_items").update({"reserved": new_reserved}).eq("location_id", PLANT_LOCATION_ID).eq("sku_id", item["skuId"]).execute()
+            else:
+                # Initialize stock record if missing (unlikely for Plant but safe)
+                supabase.table("stock_items").insert({
+                    "location_id": PLANT_LOCATION_ID,
+                    "sku_id": item["skuId"],
+                    "quantity": 0, # Assume 0 on hand if record missing
+                    "reserved": item["quantity"]
+                }).execute()
 
         # Deduct from wallet
         new_balance = distributor.data["wallet_balance"] - total_amount
@@ -290,6 +317,25 @@ async def update_order_status(
 
         if status == OrderStatus.DELIVERED:
             update_data["deliveredDate"] = datetime.utcnow().isoformat()
+            
+            # Reduce stock and reservation at Plant
+            # Get order items
+            order_items = supabase.table("order_items").select("*").eq("order_id", order_id).execute()
+            
+            for item in order_items.data:
+                existing_stock = supabase.table("stock_items").select("quantity, reserved").eq("location_id", PLANT_LOCATION_ID).eq("sku_id", item["sku_id"]).single().execute()
+                
+                if existing_stock.data:
+                    current_qty = existing_stock.data["quantity"]
+                    current_reserved = existing_stock.data["reserved"]
+                    
+                    new_qty = current_qty - item["quantity"]
+                    new_reserved = current_reserved - item["quantity"]
+                    
+                    supabase.table("stock_items").update({
+                        "quantity": new_qty, 
+                        "reserved": new_reserved
+                    }).eq("location_id", PLANT_LOCATION_ID).eq("sku_id", item["sku_id"]).execute()
 
         response = supabase.table("orders").update(update_data).eq("id", order_id).execute()
 
@@ -316,6 +362,17 @@ async def delete_order(
         order = supabase.table("orders").select("*").eq("id", order_id).single().execute()
         if not order.data:
             raise HTTPException(status_code=404, detail="Order not found")
+
+        # Release reserved stock if Order was Pending
+        if order.data["status"] == OrderStatus.PENDING.value:
+             order_items = supabase.table("order_items").select("*").eq("order_id", order_id).execute()
+             for item in order_items.data:
+                 existing_stock = supabase.table("stock_items").select("reserved").eq("location_id", PLANT_LOCATION_ID).eq("sku_id", item["sku_id"]).single().execute()
+                 if existing_stock.data:
+                     new_reserved = existing_stock.data["reserved"] - item["quantity"]
+                     # Prevent negative reserved (just in case)
+                     if new_reserved < 0: new_reserved = 0
+                     supabase.table("stock_items").update({"reserved": new_reserved}).eq("location_id", PLANT_LOCATION_ID).eq("sku_id", item["sku_id"]).execute()
 
         # Refund wallet if payment was made
         if order.data["status"] == OrderStatus.PENDING.value:

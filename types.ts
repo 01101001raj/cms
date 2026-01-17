@@ -54,6 +54,7 @@ export interface Distributor {
   dateAdded: string; // ISO string
   priceTierId?: string;
   storeId?: string;
+  lastOrderDate?: string;
 }
 
 export enum OrderStatus {

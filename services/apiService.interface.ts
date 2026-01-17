@@ -19,7 +19,7 @@ export interface ApiService {
   addStore(storeData: Omit<Store, 'id' | 'walletBalance'>): Promise<Store>;
   updateStore(storeData: Store): Promise<Store>;
   deleteStore(storeId: string): Promise<void>;
-  
+
   // Distributors
   getDistributors(portalState: PortalState | null): Promise<Distributor[]>;
   getDistributorById(id: string): Promise<Distributor | null>;
@@ -27,12 +27,12 @@ export interface ApiService {
   updateDistributor(distributorData: Distributor, role: UserRole): Promise<Distributor>;
 
   // Orders
-  getOrders(portalState: PortalState | null): Promise<Order[]>;
-  getOrdersByDistributor(distributorId: string): Promise<Order[]>;
+  getOrders(portalState: PortalState | null, dateRange?: { from?: Date; to?: Date }): Promise<Order[]>;
+  getOrdersByDistributor(distributorId: string, dateRange?: { from?: Date; to?: Date }): Promise<Order[]>;
   // FIX: Return the enriched type to match component state and mock implementation.
   getOrderItems(orderId: string): Promise<EnrichedOrderItem[]>;
-  getAllOrderItems(portalState: PortalState | null): Promise<OrderItem[]>;
-  placeOrder(distributorId: string, items: { skuId: string; quantity: number }[], username: string, portal: PortalState | null): Promise<Order>;
+  getAllOrderItems(portalState: PortalState | null, dateRange?: { from?: Date; to?: Date }): Promise<OrderItem[]>;
+  placeOrder(distributorId: string, items: { skuId: string; quantity: number }[], username: string, portal: PortalState | null, approvalGrantedBy?: string): Promise<Order>;
   updateOrderItems(orderId: string, items: { skuId: string; quantity: number }[], username: string): Promise<void>;
   // FIX: Use the OrderStatus enum for type safety.
   updateOrderStatus(orderId: string, status: OrderStatus, username: string, portal: PortalState | null): Promise<void>;
@@ -71,8 +71,8 @@ export interface ApiService {
 
   // Wallet
   // FIX: Return the enriched type to match component state and mock implementation.
-  getWalletTransactionsByDistributor(distributorId: string): Promise<EnrichedWalletTransaction[]>;
-  getAllWalletTransactions(portalState: PortalState | null): Promise<EnrichedWalletTransaction[]>;
+  getWalletTransactionsByDistributor(distributorId: string, dateRange?: { from?: Date; to?: Date }): Promise<EnrichedWalletTransaction[]>;
+  getAllWalletTransactions(portalState: PortalState | null, dateRange?: { from?: Date; to?: Date }): Promise<EnrichedWalletTransaction[]>;
   rechargeWallet(distributorId: string, amount: number, username: string, paymentMethod: string, remarks: string, date: string, portal: PortalState | null): Promise<void>;
   rechargeStoreWallet(storeId: string, amount: number, username: string, paymentMethod: string, remarks: string, date: string): Promise<void>;
 
@@ -80,7 +80,7 @@ export interface ApiService {
   getNotifications(): Promise<Notification[]>;
   markNotificationAsRead(id: string): Promise<void>;
   markAllNotificationsAsRead(): Promise<void>;
-  
+
   // Invoice
   getInvoiceData(orderId: string): Promise<InvoiceData | null>;
 
@@ -91,7 +91,7 @@ export interface ApiService {
 
   // Stock Transfers
   createStockTransfer(storeId: string, items: { skuId: string; quantity: number }[], username: string): Promise<StockTransfer>;
-  getStockTransfers(): Promise<EnrichedStockTransfer[]>;
+  getStockTransfers(dateRange?: { from?: Date; to?: Date }): Promise<EnrichedStockTransfer[]>;
   getEnrichedStockTransferItems(transferId: string): Promise<EnrichedStockTransferItem[]>;
   updateStockTransferStatus(transferId: string, status: StockTransferStatus, username: string): Promise<void>;
   getDispatchNoteData(transferId: string): Promise<DispatchNoteData | null>;

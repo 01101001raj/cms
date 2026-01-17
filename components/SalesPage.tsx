@@ -13,6 +13,7 @@ import { useAuth } from '../hooks/useAuth';
 import SalesCharts from './SalesCharts';
 import { useNavigate } from 'react-router-dom';
 import SalesMap from './SalesMap';
+import Loader from './common/Loader';
 
 interface StatCardProps {
     title: string;
@@ -85,11 +86,12 @@ const SalesPage: React.FC = () => {
             if (!portal) return;
             setLoading(true);
             try {
+                const apiDateRange = { from: dateRange.from || undefined, to: dateRange.to || undefined };
                 const [orderData, distributorData, skuData, orderItemData, schemeData] = await Promise.all([
-                    api.getOrders(portal),
+                    api.getOrders(portal, apiDateRange),
                     api.getDistributors(portal),
                     api.getSKUs(),
-                    api.getAllOrderItems(portal),
+                    api.getAllOrderItems(portal, apiDateRange),
                     api.getSchemes(portal),
                 ]);
                 setOrders(orderData);
@@ -104,7 +106,7 @@ const SalesPage: React.FC = () => {
             }
         };
         fetchData();
-    }, [portal]);
+    }, [portal, dateRange]);
 
     const uniqueAsmNames = useMemo(() => [...new Set(distributors.map(d => d.asmName))].sort(), [distributors]);
 
@@ -740,7 +742,7 @@ const SalesPage: React.FC = () => {
 
 
     if (loading) {
-        return <div className="text-center p-8">Loading sales data...</div>;
+        return <Loader fullScreen text="Loading sales data..." />;
     }
 
     return (
@@ -792,34 +794,34 @@ const SalesPage: React.FC = () => {
                         </div>
                         <div className="p-4 overflow-y-auto">
                             {districtModalData.length > 0 ? (
-                                <table className="w-full text-sm">
-                                    <thead>
-                                        <tr className="bg-slate-50 text-left">
-                                            <th className="p-2 rounded-l">Rank</th>
-                                            <th className="p-2">Distributor</th>
-                                            <th className="p-2 text-right rounded-r">Units Sold</th>
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-xs h-12 border-b sticky top-0">
+                                        <tr>
+                                            <th className="px-4 py-3 rounded-tl-lg">Rank</th>
+                                            <th className="px-4 py-3">Distributor</th>
+                                            <th className="px-4 py-3 text-right rounded-tr-lg">Units Sold</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
+                                    <tbody className="divide-y divide-slate-100">
                                         {districtModalData.map((d, i) => (
-                                            <tr key={i} className={`border-b last:border-0 hover:bg-slate-50 ${i === 0 ? 'bg-yellow-50' : ''}`}>
-                                                <td className="p-2 font-bold text-slate-500 w-12 text-center">
+                                            <tr key={i} className={`transition-colors hover:bg-slate-50 ${i === 0 ? 'bg-yellow-50/50' : ''}`}>
+                                                <td className="px-4 py-3 font-bold text-slate-500 w-16 text-center">
                                                     {i === 0 ? <Trophy size={16} className="text-yellow-600 mx-auto" /> : i + 1}
                                                 </td>
-                                                <td className="p-2">
-                                                    <div className="font-medium flex items-center gap-2">
+                                                <td className="px-4 py-3">
+                                                    <div className="font-medium flex items-center gap-2 text-slate-900">
                                                         {d.name}
                                                         {i === 0 && <span className="text-[10px] bg-yellow-100 text-yellow-800 px-1.5 py-0.5 rounded-full font-bold">TOP</span>}
                                                     </div>
-                                                    <div className="text-xs text-contentSecondary">{d.agentCode}</div>
+                                                    <div className="text-xs text-slate-500">{d.agentCode}</div>
                                                 </td>
-                                                <td className="p-2 text-right font-bold text-primary">{formatIndianNumber(d.units)}</td>
+                                                <td className="px-4 py-3 text-right font-bold text-primary">{formatIndianNumber(d.units)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
                             ) : (
-                                <p className="text-center text-contentSecondary py-8">No sales data found for this district in the selected time range.</p>
+                                <p className="text-center text-slate-400 py-12">No sales data found for this district in the selected time range.</p>
                             )}
                         </div>
                         <div className="p-4 border-t bg-slate-50 rounded-b-lg text-right">
@@ -846,14 +848,14 @@ const SalesPage: React.FC = () => {
             />
 
             <Card>
-                <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
-                    <h3 className="text-lg font-semibold text-content flex items-center"><Table size={20} className="mr-2 text-primary" /> Product Sales Summary</h3>
+                <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                    <h3 className="text-lg font-bold text-slate-800 flex items-center"><Table size={20} className="mr-2 text-primary" /> Product Sales Summary</h3>
                     <Button onClick={handleExportProductSummaryCsv} size="sm" variant="secondary"><Download size={14} /> Export CSV</Button>
                 </div>
                 {/* Desktop Table View */}
                 <div className="overflow-x-auto hidden md:block">
-                    <table className="w-full text-left min-w-[600px] text-sm">
-                        <thead className="bg-slate-100">
+                    <table className="w-full text-left min-w-[600px] text-sm text-left">
+                        <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-xs h-12 border-b">
                             <tr>
                                 <SortableTableHeader label="Product Name" sortKey="skuName" requestSort={requestProductSort} sortConfig={productSortConfig} />
                                 <SortableTableHeader label="Paid Units" sortKey="paid" requestSort={requestProductSort} sortConfig={productSortConfig} className="text-right" />
@@ -861,13 +863,13 @@ const SalesPage: React.FC = () => {
                                 <SortableTableHeader label="Total Units" sortKey="total" requestSort={requestProductSort} sortConfig={productSortConfig} className="text-right" />
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-slate-100">
                             {sortedProductSummary.map(p => (
-                                <tr key={p.skuName} className="border-b border-border last:border-b-0">
-                                    <td className="p-3 font-medium">{p.skuName}</td>
-                                    <td className="p-3 text-right">{formatIndianNumber(p.paid)}</td>
-                                    <td className="p-3 text-right">{formatIndianNumber(p.free)}</td>
-                                    <td className="p-3 font-semibold text-right">{formatIndianNumber(p.total)}</td>
+                                <tr key={p.skuName} className="hover:bg-slate-50 transition-colors">
+                                    <td className="px-4 py-3 font-medium text-slate-900">{p.skuName}</td>
+                                    <td className="px-4 py-3 text-right text-slate-600">{formatIndianNumber(p.paid)}</td>
+                                    <td className="px-4 py-3 text-right text-green-600">{formatIndianNumber(p.free)}</td>
+                                    <td className="px-4 py-3 font-bold text-right text-slate-900">{formatIndianNumber(p.total)}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -877,18 +879,18 @@ const SalesPage: React.FC = () => {
                 <div className="md:hidden space-y-4">
                     {sortedProductSummary.map(p => (
                         <Card key={p.skuName}>
-                            <p className="font-bold text-content">{p.skuName}</p>
+                            <p className="font-bold text-slate-800">{p.skuName}</p>
                             <div className="grid grid-cols-3 gap-4 text-center mt-3 pt-3 border-t">
                                 <div>
-                                    <p className="text-xs font-semibold text-contentSecondary">Paid</p>
-                                    <p className="font-semibold text-lg text-content">{formatIndianNumber(p.paid)}</p>
+                                    <p className="text-xs font-semibold text-slate-500">Paid</p>
+                                    <p className="font-semibold text-lg text-slate-800">{formatIndianNumber(p.paid)}</p>
                                 </div>
                                 <div>
-                                    <p className="text-xs font-semibold text-contentSecondary">Free</p>
+                                    <p className="text-xs font-semibold text-slate-500">Free</p>
                                     <p className="font-semibold text-lg text-green-600">{formatIndianNumber(p.free)}</p>
                                 </div>
                                 <div>
-                                    <p className="text-xs font-semibold text-contentSecondary">Total</p>
+                                    <p className="text-xs font-semibold text-slate-500">Total</p>
                                     <p className="font-bold text-lg text-primary">{formatIndianNumber(p.total)}</p>
                                 </div>
                             </div>
@@ -898,89 +900,89 @@ const SalesPage: React.FC = () => {
             </Card>
 
             <Card>
-                <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
-                    <h3 className="text-lg font-semibold text-content flex items-center"><BarChart size={20} className="mr-2 text-primary" /> Distributor Sales Table</h3>
+                <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                    <h3 className="text-lg font-bold text-slate-800 flex items-center"><BarChart size={20} className="mr-2 text-primary" /> Distributor Sales Table</h3>
                     <div className="flex gap-2">
                         <Button onClick={handleExportTableCsv} size="sm" variant="secondary"><Download size={14} /> Export Summary</Button>
                         <Button onClick={handleExportDetailedCsv} size="sm" variant="secondary"><Download size={14} /> Export Detailed</Button>
                     </div>
                 </div>
                 {/* Desktop Table View */}
-                <div className="overflow-x-auto hidden md:block">
-                    <table className="w-full text-left min-w-[1200px] text-sm relative border-collapse">
-                        <thead className="bg-slate-100">
+                <div className="overflow-x-auto hidden md:block border rounded-xl">
+                    <table className="w-full text-left min-w-[1200px] text-sm relative border-collapse text-left">
+                        <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-xs h-12 border-b">
                             <tr>
-                                <th rowSpan={2} className="p-3 align-bottom">
+                                <th rowSpan={2} className="px-4 py-3 align-bottom border-b border-r border-slate-200">
                                     <SortableTableHeader label="Distributor ID" sortKey="distributorId" requestSort={requestDistributorSalesSort} sortConfig={distributorSalesSortConfig} />
                                 </th>
-                                <th rowSpan={2} className="p-3 align-bottom sticky left-0 bg-slate-100 z-10 border-r border-border">
+                                <th rowSpan={2} className="px-4 py-3 align-bottom sticky left-0 bg-slate-50 z-20 border-b border-r border-slate-200 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.1)]">
                                     <SortableTableHeader label="Distributor Name" sortKey="distributorName" requestSort={requestDistributorSalesSort} sortConfig={distributorSalesSortConfig} />
                                 </th>
-                                <th rowSpan={2} className="p-3 align-bottom">
+                                <th rowSpan={2} className="px-4 py-3 align-bottom border-b border-r border-slate-200">
                                     <SortableTableHeader label="Frequency" sortKey="frequency" requestSort={requestDistributorSalesSort} sortConfig={distributorSalesSortConfig} className="text-center" />
                                 </th>
                                 {salesData.productColumns.map(name => (
-                                    <th key={name} colSpan={2} className="p-2 font-semibold text-contentSecondary text-center border-x border-border whitespace-nowrap">{name}</th>
+                                    <th key={name} colSpan={2} className="px-4 py-2 font-semibold text-slate-500 text-center border text-xs bg-slate-100 whitespace-nowrap">{name}</th>
                                 ))}
-                                <th rowSpan={2} className="p-3 align-bottom">
+                                <th rowSpan={2} className="px-4 py-3 align-bottom border-b border-l border-slate-200">
                                     <SortableTableHeader label="Total (incl. GST)" sortKey="totalWithGst" requestSort={requestDistributorSalesSort} sortConfig={distributorSalesSortConfig} className="text-right" />
                                 </th>
-                                <th rowSpan={2} className="p-3 align-bottom sticky right-0 bg-slate-100 z-10 border-l border-border">
+                                <th rowSpan={2} className="px-4 py-3 align-bottom sticky right-0 bg-slate-50 z-20 border-b border-l border-slate-200 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">
                                     <SortableTableHeader label="Wallet Balance" sortKey="walletBalance" requestSort={requestDistributorSalesSort} sortConfig={distributorSalesSortConfig} className="text-right" />
                                 </th>
                             </tr>
                             <tr>
                                 {salesData.productColumns.map(name => (
                                     <React.Fragment key={`${name}-sub`}>
-                                        <th className="p-2 font-semibold text-contentSecondary text-center border-l border-border">Paid</th>
-                                        <th className="p-2 font-semibold text-contentSecondary text-center text-green-700 border-r border-border">Free</th>
+                                        <th className="px-2 py-2 font-semibold text-slate-500 text-center border-b border-r border-slate-200 text-[10px] uppercase">Paid</th>
+                                        <th className="px-2 py-2 font-semibold text-green-700 text-center border-b border-r border-slate-200 text-[10px] uppercase bg-green-50/50">Free</th>
                                     </React.Fragment>
                                 ))}
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-slate-100">
                             {sortedDistributorSales.map(sale => (
-                                <tr key={sale.distributorId} className="border-b border-border last:border-b-0 group hover:bg-slate-50">
-                                    <td className="p-3 font-mono text-xs">{sale.distributorId}</td>
+                                <tr key={sale.distributorId} className="hover:bg-slate-50 transition-colors group">
+                                    <td className="px-4 py-3 font-mono text-xs text-slate-500 border-r border-slate-100">{sale.distributorId}</td>
                                     <td
-                                        className="p-3 font-medium sticky left-0 bg-white group-hover:bg-slate-50 border-r border-border text-primary hover:underline cursor-pointer"
+                                        className="px-4 py-3 font-medium sticky left-0 bg-white group-hover:bg-slate-50 border-r border-slate-200 text-primary hover:text-primaryHover hover:underline cursor-pointer shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] transition-colors"
                                         onClick={() => navigate(`/distributors/${sale.distributorId}`, { state: { initialTab: 'wallet' } })}
                                     >
                                         {sale.distributorName}
                                     </td>
-                                    <td className="p-3 text-center">{sale.frequency}</td>
+                                    <td className="px-4 py-3 text-center text-slate-700 border-r border-slate-100">{sale.frequency}</td>
                                     {salesData.productColumns.map((name: string) => (
                                         <React.Fragment key={name}>
-                                            <td className="p-3 text-center border-l border-border">
+                                            <td className="px-2 py-3 text-center text-slate-600 border-r border-slate-100 text-xs">
                                                 {formatIndianNumber(sale[name] as number || 0)}
                                             </td>
-                                            <td className="p-3 text-center text-green-600 font-medium border-r border-border">
+                                            <td className="px-2 py-3 text-center text-green-600 font-medium border-r border-slate-100 text-xs bg-green-50/10 group-hover:bg-green-50/30">
                                                 {formatIndianNumber(sale[`${name} free`] as number || 0)}
                                             </td>
                                         </React.Fragment>
                                     ))}
-                                    <td className="p-3 font-semibold text-right">{formatIndianCurrency(sale.totalWithGst)}</td>
-                                    <td className={`p-3 text-right font-semibold sticky right-0 bg-white group-hover:bg-slate-50 border-l border-border ${sale.walletBalance < 0 ? 'text-red-600' : 'text-content'}`}>{formatIndianCurrency(sale.walletBalance)}</td>
+                                    <td className="px-4 py-3 font-bold text-right text-slate-800 border-l border-slate-100">{formatIndianCurrency(sale.totalWithGst)}</td>
+                                    <td className={`px-4 py-3 text-right font-bold sticky right-0 bg-white group-hover:bg-slate-50 border-l border-slate-200 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.05)] transition-colors ${sale.walletBalance < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatIndianCurrency(sale.walletBalance)}</td>
                                 </tr>
                             ))}
                         </tbody>
-                        <tfoot className="bg-slate-100 border-t-2 border-border">
-                            <tr className="font-bold">
-                                <td className="p-3"></td>
-                                <td className="p-3 sticky left-0 bg-slate-100 z-10 border-r border-border">Total</td>
-                                <td className="p-3 text-center">{formatIndianNumber(salesData.salesTotals.frequency)}</td>
+                        <tfoot className="bg-slate-50 border-t-2 border-slate-200 font-bold text-xs uppercase text-slate-700">
+                            <tr>
+                                <td className="px-4 py-3 border-r border-slate-200"></td>
+                                <td className="px-4 py-3 sticky left-0 bg-slate-50 z-20 border-r border-slate-200 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.1)]">Total</td>
+                                <td className="px-4 py-3 text-center border-r border-slate-200">{formatIndianNumber(salesData.salesTotals.frequency)}</td>
                                 {salesData.productColumns.map((name: string) => (
                                     <React.Fragment key={name}>
-                                        <td className="p-3 text-center border-l border-border">
+                                        <td className="px-2 py-3 text-center border-r border-slate-200">
                                             {formatIndianNumber(salesData.salesTotals[name] || 0)}
                                         </td>
-                                        <td className="p-3 text-center text-green-600 font-medium border-r border-border">
+                                        <td className="px-2 py-3 text-center text-green-700 border-r border-slate-200 bg-green-50/50">
                                             {formatIndianNumber(salesData.salesTotals[`${name} free`] || 0)}
                                         </td>
                                     </React.Fragment>
                                 ))}
-                                <td className="p-3 text-right">{formatIndianCurrency(salesData.salesTotals.totalWithGst)}</td>
-                                <td className="p-3 text-right sticky right-0 bg-slate-100 z-10 border-l border-border"></td>
+                                <td className="px-4 py-3 text-right border-l border-slate-200">{formatIndianCurrency(salesData.salesTotals.totalWithGst)}</td>
+                                <td className="px-4 py-3 text-right sticky right-0 bg-slate-50 z-20 border-l border-slate-200 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]"></td>
                             </tr>
                         </tfoot>
                     </table>
@@ -997,39 +999,37 @@ const SalesPage: React.FC = () => {
                                     >
                                         {sale.distributorName}
                                     </p>
-                                    <p className="font-mono text-xs text-contentSecondary">{sale.distributorId}</p>
+                                    <p className="font-mono text-xs text-slate-500">{sale.distributorId}</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="font-bold text-lg">{formatIndianCurrency(sale.totalWithGst)}</p>
-                                    <p className="text-xs text-contentSecondary">from {sale.frequency} order(s)</p>
+                                    <p className="font-bold text-lg text-slate-800">{formatIndianCurrency(sale.totalWithGst)}</p>
+                                    <p className="text-xs text-slate-500">from {sale.frequency} order(s)</p>
                                 </div>
                             </div>
                             <div className="mt-4 pt-4 border-t flex justify-between items-center text-sm">
                                 <div>
-                                    <p className="text-xs font-semibold text-contentSecondary">Wallet Balance</p>
-                                    <p className={`font-semibold ${sale.walletBalance < 0 ? 'text-red-600' : 'text-content'}`}>{formatIndianCurrency(sale.walletBalance)}</p>
+                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Wallet Balance</p>
+                                    <p className={`font-bold ${sale.walletBalance < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatIndianCurrency(sale.walletBalance)}</p>
                                 </div>
-                                <div onClick={() => setExpandedDistributor(prev => prev === sale.distributorId ? null : sale.distributorId)} className="flex items-center text-primary font-semibold cursor-pointer">
+                                <div onClick={() => setExpandedDistributor(prev => prev === sale.distributorId ? null : sale.distributorId)} className="flex items-center text-primary font-semibold cursor-pointer hover:text-primaryHover">
                                     {expandedDistributor === sale.distributorId ? 'Hide Details' : 'Show Details'}
                                     {expandedDistributor === sale.distributorId ? <ChevronDown size={16} className="ml-1" /> : <ChevronRight size={16} className="ml-1" />}
                                 </div>
                             </div>
                             {expandedDistributor === sale.distributorId && (
-                                <div className="mt-4 pt-4 border-t text-sm space-y-2">
-                                    <h4 className="font-semibold text-content mb-1">Product Quantities</h4>
+                                <div className="mt-4 pt-4 border-t text-sm space-y-2 bg-slate-50 -mx-6 -mb-6 p-6 rounded-b-xl">
+                                    <h4 className="font-bold text-slate-800 mb-3 uppercase text-xs tracking-wider">Product Quantities</h4>
                                     {salesData.productColumns.map((name: string) => {
-                                        // FIX: Cast dynamic properties to Number to allow for numeric comparisons, resolving type errors.
                                         const paidQty = Number(sale[name] || 0);
-                                        // FIX: Cast dynamic properties to Number to allow for numeric comparisons, resolving type errors.
                                         const freeQty = Number(sale[`${name} free`] || 0);
                                         if (paidQty === 0 && freeQty === 0) return null;
                                         return (
-                                            <div key={name} className="flex justify-between items-center">
-                                                <span className="text-contentSecondary">{name}</span>
-                                                <span className="font-medium">
-                                                    {paidQty > 0 && <span>{formatIndianNumber(paidQty)} Paid</span>}
-                                                    {paidQty > 0 && freeQty > 0 && <span className="mx-1">/</span>}
-                                                    {freeQty > 0 && <span className="text-green-600">{formatIndianNumber(freeQty)} Free</span>}
+                                            <div key={name} className="flex justify-between items-center border-b border-slate-200 last:border-0 pb-2 mb-2 last:pb-0 last:mb-0">
+                                                <span className="text-slate-600 font-medium">{name}</span>
+                                                <span className="font-medium text-slate-800">
+                                                    {paidQty > 0 && <span>{formatIndianNumber(paidQty)} <span className="text-xs text-slate-500">Paid</span></span>}
+                                                    {paidQty > 0 && freeQty > 0 && <span className="mx-2 text-slate-300">|</span>}
+                                                    {freeQty > 0 && <span className="text-green-600">{formatIndianNumber(freeQty)} <span className="text-xs text-green-500">Free</span></span>}
                                                 </span>
                                             </div>
                                         );

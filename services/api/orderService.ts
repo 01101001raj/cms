@@ -141,8 +141,16 @@ const calculateOrderMetrics = (
 
 export const createOrderService = (supabase: SupabaseClient) => ({
     // READ operations
-    async getOrders(portalState: PortalState | null): Promise<Order[]> {
+    async getOrders(portalState: PortalState | null, dateRange?: { from?: Date; to?: Date }): Promise<Order[]> {
         let query = supabase.from('orders').select('*');
+
+        if (dateRange?.from) {
+            query = query.gte('date', dateRange.from.toISOString());
+        }
+        if (dateRange?.to) {
+            query = query.lte('date', dateRange.to.toISOString());
+        }
+
         if (portalState?.type === 'store' && portalState.id) {
             const { data: distIds, error: distError } = await supabase.from('distributors').select('id').eq('store_id', portalState.id);
             if (distError) throw distError;
@@ -154,8 +162,17 @@ export const createOrderService = (supabase: SupabaseClient) => ({
         return (orders || []).map((o: any) => ({ id: o.id, distributorId: o.distributor_id, date: o.date, totalAmount: o.total_amount, status: o.status, placedByExecId: o.placed_by_exec_id, deliveredDate: o.delivered_date }));
     },
 
-    async getOrdersByDistributor(distributorId: string): Promise<Order[]> {
-        const { data, error } = await supabase.from('orders').select('*').eq('distributor_id', distributorId).order('date', { ascending: false });
+    async getOrdersByDistributor(distributorId: string, dateRange?: { from?: Date; to?: Date }): Promise<Order[]> {
+        let query = supabase.from('orders').select('*').eq('distributor_id', distributorId);
+
+        if (dateRange?.from) {
+            query = query.gte('date', dateRange.from.toISOString());
+        }
+        if (dateRange?.to) {
+            query = query.lte('date', dateRange.to.toISOString());
+        }
+
+        const { data, error } = await query.order('date', { ascending: false });
         const orders = handleResponse({ data, error });
         return (orders || []).map((o: any) => ({ id: o.id, distributorId: o.distributor_id, date: o.date, totalAmount: o.total_amount, status: o.status, placedByExecId: o.placed_by_exec_id, deliveredDate: o.delivered_date }));
     },
@@ -166,8 +183,8 @@ export const createOrderService = (supabase: SupabaseClient) => ({
         return (items || []).map((item: any) => ({ id: item.id, orderId: item.order_id, skuId: item.sku_id, quantity: item.quantity, unitPrice: item.unit_price, isFreebie: item.is_freebie, returnedQuantity: item.returned_quantity, skuName: item.skus.name, hsnCode: item.skus.hsn_code, gstPercentage: item.skus.gst_percentage, basePrice: item.skus.price }));
     },
 
-    async getAllOrderItems(portalState: PortalState | null): Promise<OrderItem[]> {
-        const orders = await this.getOrders(portalState);
+    async getAllOrderItems(portalState: PortalState | null, dateRange?: { from?: Date; to?: Date }): Promise<OrderItem[]> {
+        const orders = await this.getOrders(portalState, dateRange);
         if (orders.length === 0) return [];
         const orderIds = orders.map(o => o.id);
         const { data, error } = await supabase.from('order_items').select('*').in('order_id', orderIds);

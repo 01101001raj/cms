@@ -10,6 +10,7 @@ import { Layers, PlusCircle, Edit, Trash2, Save, XCircle, Search, ChevronDown, C
 import { useSortableData } from '../hooks/useSortableData';
 import SortableTableHeader from './common/SortableTableHeader';
 import { formatIndianCurrency } from '../utils/formatting';
+import Loader from './common/Loader';
 
 type TierFormInputs = Omit<PriceTier, 'id'>;
 
@@ -70,7 +71,7 @@ const EditTierModal: React.FC<EditTierModalProps> = ({ tier, skus, onClose, onSa
                 .filter(item => !isNaN(item.price) && item.price > 0);
 
             await api.setPriceTierItems(savedTier.id, priceItemsToSave, userRole);
-            
+
             onSave();
         } catch (error) {
             console.error("Failed to save price tier", error);
@@ -103,22 +104,22 @@ const EditTierModal: React.FC<EditTierModalProps> = ({ tier, skus, onClose, onSa
                     <Card>
                         <h3 className="font-semibold mb-2">Product Prices</h3>
                         <div className="overflow-x-auto max-h-96">
-                            <table className="w-full text-sm">
-                                <thead className="bg-slate-100 sticky top-0">
+                            <table className="w-full text-sm text-left">
+                                <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-xs h-12 border-b sticky top-0">
                                     <tr>
-                                        <th className="p-2 font-semibold text-contentSecondary">Product</th>
-                                        <th className="p-2 font-semibold text-contentSecondary text-right">Default Price</th>
-                                        <th className="p-2 font-semibold text-contentSecondary text-right">Tier Price</th>
+                                        <th className="px-4 py-3 font-semibold text-slate-500">Product</th>
+                                        <th className="px-4 py-3 font-semibold text-slate-500 text-right">Default Price</th>
+                                        <th className="px-4 py-3 font-semibold text-slate-500 text-right">Tier Price</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody className="divide-y divide-slate-100">
                                     {skus.map(sku => (
-                                        <tr key={sku.id} className="border-b last:border-0">
-                                            <td className="p-2 font-medium">{sku.name}</td>
-                                            <td className="p-2 text-right text-contentSecondary">{formatIndianCurrency(sku.price)}</td>
-                                            <td className="p-2">
-                                                <Input 
-                                                    type="number" 
+                                        <tr key={sku.id} className="hover:bg-slate-50 transition-colors">
+                                            <td className="px-4 py-3 font-medium text-slate-900">{sku.name}</td>
+                                            <td className="px-4 py-3 text-right text-slate-500">{formatIndianCurrency(sku.price)}</td>
+                                            <td className="px-4 py-3">
+                                                <Input
+                                                    type="number"
                                                     className="text-right"
                                                     placeholder="Set Price"
                                                     value={tierPrices[sku.id] || ''}
@@ -175,7 +176,7 @@ const ManagePriceTiers: React.FC = () => {
             ]);
             setTiers(tierData);
             setDistributors(distData);
-            setSkus(skuData.sort((a,b) => a.name.localeCompare(b.name)));
+            setSkus(skuData.sort((a, b) => a.name.localeCompare(b.name)));
             setAllTierItems(tierItemData);
         } catch (error) {
             console.error("Failed to fetch price tiers", error);
@@ -189,8 +190,8 @@ const ManagePriceTiers: React.FC = () => {
     }, []);
 
     const filteredDistributors = useMemo(() => {
-        return distributors.filter(d => 
-            d.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        return distributors.filter(d =>
+            d.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             d.id.toLowerCase().includes(searchTerm.toLowerCase())
         );
     }, [distributors, searchTerm]);
@@ -217,7 +218,7 @@ const ManagePriceTiers: React.FC = () => {
             return row;
         });
     }, [filteredDistributors, skus, tierPriceMap]);
-    
+
     // FIX: Explicitly provided the generic type argument to `useSortableData` to ensure proper type inference, preventing errors where an empty array might be inferred as `never[]`.
     const { items: sortedPricingData, requestSort: requestPricingSort, sortConfig: pricingSortConfig } = useSortableData<PricingDataRow>(pricingTableData, { key: 'name', direction: 'ascending' });
 
@@ -246,7 +247,7 @@ const ManagePriceTiers: React.FC = () => {
     };
 
     if (loading) {
-        return <div className="text-center p-8">Loading price tiers...</div>;
+        return <Loader fullScreen text="Loading price tiers..." />;
     }
 
     return (
@@ -254,27 +255,27 @@ const ManagePriceTiers: React.FC = () => {
             <Card>
                 <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
                     <h2 className="text-2xl font-bold">Manage Price Tiers</h2>
-                    <Button onClick={handleAddNew} className="w-full sm:w-auto"><PlusCircle size={16}/> Add New Tier</Button>
+                    <Button onClick={handleAddNew} className="w-full sm:w-auto"><PlusCircle size={16} /> Add New Tier</Button>
                 </div>
-                
+
                 {/* Desktop Table View */}
                 <div className="overflow-x-auto hidden md:block">
-                    <table className="w-full text-sm">
-                        <thead className="bg-slate-100">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-xs h-12 border-b">
                             <tr>
                                 <SortableTableHeader label="Tier Name" sortKey="name" requestSort={requestSort} sortConfig={sortConfig} />
-                                <th className="p-3 font-semibold text-contentSecondary">Description</th>
-                                <th className="p-3 text-right font-semibold text-contentSecondary">Actions</th>
+                                <th className="px-4 py-3 font-semibold text-slate-500">Description</th>
+                                <th className="px-4 py-3 text-right font-semibold text-slate-500">Actions</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-slate-100">
                             {sortedTiers.map(tier => (
-                                <tr key={tier.id} className="border-b last:border-0 hover:bg-slate-50">
-                                    <td className="p-3 font-semibold">{tier.name}</td>
-                                    <td className="p-3">{tier.description}</td>
-                                    <td className="p-3 text-right space-x-2">
-                                        <Button onClick={() => handleEdit(tier)} variant="secondary" size="sm"><Edit size={14}/></Button>
-                                        <Button onClick={() => handleDelete(tier)} variant="danger" size="sm"><Trash2 size={14}/></Button>
+                                <tr key={tier.id} className="hover:bg-slate-50 transition-colors">
+                                    <td className="px-4 py-3 font-semibold text-slate-900">{tier.name}</td>
+                                    <td className="px-4 py-3 text-slate-600">{tier.description}</td>
+                                    <td className="px-4 py-3 text-right space-x-2">
+                                        <Button onClick={() => handleEdit(tier)} variant="secondary" size="sm"><Edit size={14} /></Button>
+                                        <Button onClick={() => handleDelete(tier)} variant="danger" size="sm"><Trash2 size={14} /></Button>
                                     </td>
                                 </tr>
                             ))}
@@ -289,8 +290,8 @@ const ManagePriceTiers: React.FC = () => {
                             <p className="font-bold text-content">{tier.name}</p>
                             <p className="text-sm text-contentSecondary mt-1">{tier.description}</p>
                             <div className="mt-4 pt-4 border-t flex justify-end gap-2">
-                                <Button onClick={() => handleEdit(tier)} variant="secondary" size="sm"><Edit size={14}/></Button>
-                                <Button onClick={() => handleDelete(tier)} variant="danger" size="sm"><Trash2 size={14}/></Button>
+                                <Button onClick={() => handleEdit(tier)} variant="secondary" size="sm"><Edit size={14} /></Button>
+                                <Button onClick={() => handleDelete(tier)} variant="danger" size="sm"><Trash2 size={14} /></Button>
                             </div>
                         </Card>
                     ))}
@@ -300,7 +301,7 @@ const ManagePriceTiers: React.FC = () => {
                     <p className="text-center p-8 text-contentSecondary">No price tiers have been created yet.</p>
                 )}
             </Card>
-            
+
             <Card>
                 <div onClick={() => setShowMatrix(!showMatrix)} className="cursor-pointer flex justify-between items-center">
                     <h2 className="text-xl font-bold flex items-center gap-2"><Layers /> Full Pricing Matrix</h2>
@@ -322,12 +323,12 @@ const ManagePriceTiers: React.FC = () => {
                             This table shows the final effective price for each distributor and product. Prices highlighted in <span className="p-1 rounded bg-yellow-100 text-yellow-800 text-xs">yellow</span> are from an assigned price tier.
                         </p>
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left min-w-[1200px] text-sm">
-                                <thead className="bg-slate-100 sticky top-0">
+                            <table className="w-full text-left min-w-[1200px] text-sm text-left">
+                                <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-xs h-12 border-b sticky top-0">
                                     <tr>
-                                        <SortableTableHeader label="Distributor" sortKey="name" requestSort={requestPricingSort} sortConfig={pricingSortConfig} className="whitespace-nowrap" />
+                                        <SortableTableHeader label="Distributor" sortKey="name" requestSort={requestPricingSort} sortConfig={pricingSortConfig} className="whitespace-nowrap px-4 py-3" />
                                         {skus.map(sku => (
-                                            <SortableTableHeader key={sku.id} label={sku.name} sortKey={sku.id} requestSort={requestPricingSort} sortConfig={pricingSortConfig} className="text-center whitespace-nowrap" />
+                                            <SortableTableHeader key={sku.id} label={sku.name} sortKey={sku.id} requestSort={requestPricingSort} sortConfig={pricingSortConfig} className="text-center whitespace-nowrap px-4 py-3" />
                                         ))}
                                     </tr>
                                 </thead>

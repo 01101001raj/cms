@@ -11,10 +11,10 @@ const Card: React.FC<CardProps> = ({ children, className = '', noPadding = false
   return (
     <div
       className={`
-            bg-card rounded-2xl shadow-card border border-border/50
+            bg-card rounded-xl shadow-card border border-border
             transition-all duration-300 ease-out
             ${onClick ? 'cursor-pointer hover:shadow-card-hover hover:-translate-y-1' : ''}
-            ${noPadding ? '' : 'p-6 sm:p-8'} 
+            ${noPadding ? '' : 'p-6'} 
             ${className}
         `}
       onClick={onClick}

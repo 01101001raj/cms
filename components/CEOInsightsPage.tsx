@@ -7,11 +7,12 @@ import Button from './common/Button';
 import { BrainCircuit, Sparkles, Send, BarChart3, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { UserRole } from '../types';
+import Loader from './common/Loader';
 
 // Simple Markdown-like renderer
 const AIResponseRenderer = ({ text }: { text: string }) => {
     const lines = text.split('\n').filter(line => line.trim() !== '');
-    
+
     const renderLine = (line: string) => {
         // Bold text: **text**
         line = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
@@ -119,8 +120,8 @@ const CEOInsightsPage: React.FC = () => {
             // 4. Call the API
             // FIX: Use ai.models.generateContent and updated model name.
             const response = await ai.models.generateContent({
-              model: 'gemini-2.5-flash',
-              contents: fullPrompt,
+                model: 'gemini-2.5-flash',
+                contents: fullPrompt,
             });
 
             // FIX: Access the text response directly from the .text property.
@@ -144,7 +145,7 @@ const CEOInsightsPage: React.FC = () => {
             setUserInput('');
         }
     };
-    
+
     if (!currentUser?.permissions?.includes('/ceo-insights')) {
         return (
             <Card className="text-center">
@@ -172,14 +173,14 @@ const CEOInsightsPage: React.FC = () => {
                         onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
                     />
                     <Button onClick={() => handleGenerate()} disabled={loading || !userInput} className="w-full sm:w-auto">
-                        {loading ? 'Analyzing...' : <><Send size={16}/>Generate Insights</>}
+                        {loading ? 'Analyzing...' : <><Send size={16} />Generate Insights</>}
                     </Button>
                 </div>
                 <div className="mt-4">
                     <p className="text-xs text-contentSecondary mb-2">Or try an example:</p>
                     <div className="flex flex-wrap gap-2">
                         {examplePrompts.map(prompt => (
-                            <button 
+                            <button
                                 key={prompt}
                                 onClick={() => handleGenerate(prompt)}
                                 disabled={loading}
@@ -191,22 +192,21 @@ const CEOInsightsPage: React.FC = () => {
                     </div>
                 </div>
             </Card>
-            
+
             {(loading || aiResponse || error) && (
-                 <Card>
+                <Card>
                     <h2 className="text-lg font-semibold flex items-center mb-4">
                         <BarChart3 size={20} className="mr-2 text-primary" />
                         Analysis Report
                     </h2>
                     {loading && (
                         <div className="flex flex-col items-center justify-center p-8 space-y-4">
-                            <Sparkles size={32} className="text-primary animate-pulse" />
-                            <p className="text-contentSecondary">AI is analyzing your data... this may take a moment.</p>
+                            <Loader text="AI is analyzing your data..." />
                         </div>
                     )}
                     {error && (
-                         <div className="p-4 bg-red-50 text-red-700 rounded-lg flex items-start text-sm">
-                            <AlertTriangle size={20} className="mr-3 mt-0.5 flex-shrink-0"/>
+                        <div className="p-4 bg-red-50 text-red-700 rounded-lg flex items-start text-sm">
+                            <AlertTriangle size={20} className="mr-3 mt-0.5 flex-shrink-0" />
                             <div>
                                 <h3 className="font-semibold">Analysis Failed</h3>
                                 <p>{error}</p>

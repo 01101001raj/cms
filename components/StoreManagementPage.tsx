@@ -9,6 +9,7 @@ import Card from './common/Card';
 import Button from './common/Button';
 import { PlusCircle, Edit, Trash2, Store as StoreIcon, Package } from 'lucide-react';
 import StoreModal from './StoreModal';
+import Loader from './common/Loader';
 import { formatIndianCurrency } from '../utils/formatting';
 
 const StoreManagementPage: React.FC = () => {
@@ -62,7 +63,7 @@ const StoreManagementPage: React.FC = () => {
             }
         }
     };
-    
+
     const handleSave = () => {
         setIsModalOpen(false);
         setEditingStore(null);
@@ -80,31 +81,31 @@ const StoreManagementPage: React.FC = () => {
                     <div className="flex-grow">
                         <h2 className="text-2xl font-bold">Manage Stores / Warehouses</h2>
                     </div>
-                    <Button onClick={handleAddNew} className="w-full sm:w-auto"><PlusCircle size={16}/> Add New Store</Button>
+                    <Button onClick={handleAddNew} className="w-full sm:w-auto"><PlusCircle size={16} /> Add New Store</Button>
                 </div>
                 {error && <div className="p-3 bg-red-100 text-red-800 rounded-lg text-sm">{error}</div>}
-                
+
                 {/* Desktop Table View */}
                 <div className="overflow-x-auto hidden md:block">
                     <table className="w-full text-sm">
-                        <thead className="bg-slate-100">
+                        <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-xs h-12 border-b">
                             <tr>
-                                <th className="p-3 font-semibold text-contentSecondary">Store Name</th>
-                                <th className="p-3 font-semibold text-contentSecondary">Location</th>
-                                <th className="p-3 font-semibold text-contentSecondary text-right">Wallet Balance</th>
-                                <th className="p-3 text-right font-semibold text-contentSecondary">Actions</th>
+                                <th className="px-4 py-3 font-semibold text-slate-500">Store Name</th>
+                                <th className="px-4 py-3 font-semibold text-slate-500">Location</th>
+                                <th className="px-4 py-3 font-semibold text-slate-500 text-right">Wallet Balance</th>
+                                <th className="px-4 py-3 text-right font-semibold text-slate-500">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             {stores.map(store => (
                                 <tr key={store.id} className="border-b last:border-0 hover:bg-slate-50">
-                                    <td className="p-3 font-semibold flex items-center gap-2"><StoreIcon size={16} className="text-contentSecondary"/>{store.name}</td>
+                                    <td className="p-3 font-semibold flex items-center gap-2"><StoreIcon size={16} className="text-contentSecondary" />{store.name}</td>
                                     <td className="p-3">{store.location}</td>
                                     <td className={`p-3 text-right font-semibold ${store.walletBalance < 0 ? 'text-red-600' : 'text-content'}`}>{formatIndianCurrency(store.walletBalance)}</td>
                                     <td className="p-3 text-right space-x-2">
-                                        <Button onClick={() => navigate(`/stock/store/${store.id}`)} variant="secondary" size="sm" title="View Store Stock"><Package size={14}/> View Stock</Button>
-                                        <Button onClick={() => handleEdit(store)} variant="secondary" size="sm"><Edit size={14}/></Button>
-                                        <Button onClick={() => handleDelete(store)} variant="danger" size="sm"><Trash2 size={14}/></Button>
+                                        <Button onClick={() => navigate(`/stock/store/${store.id}`)} variant="secondary" size="sm" title="View Store Stock"><Package size={14} /> View Stock</Button>
+                                        <Button onClick={() => handleEdit(store)} variant="secondary" size="sm"><Edit size={14} /></Button>
+                                        <Button onClick={() => handleDelete(store)} variant="danger" size="sm"><Trash2 size={14} /></Button>
                                     </td>
                                 </tr>
                             ))}
@@ -118,7 +119,7 @@ const StoreManagementPage: React.FC = () => {
                         <Card key={store.id}>
                             <div className="flex justify-between items-start">
                                 <div className="flex items-center gap-2">
-                                    <StoreIcon size={16} className="text-contentSecondary mt-0.5"/>
+                                    <StoreIcon size={16} className="text-contentSecondary mt-0.5" />
                                     <div>
                                         <p className="font-bold text-content">{store.name}</p>
                                         <p className="text-sm text-contentSecondary">{store.location}</p>
@@ -130,16 +131,16 @@ const StoreManagementPage: React.FC = () => {
                                 <span className={`font-semibold ${store.walletBalance < 0 ? 'text-red-600' : 'text-content'}`}>{formatIndianCurrency(store.walletBalance)}</span>
                             </div>
                             <div className="mt-4 pt-4 border-t flex justify-end gap-2">
-                                <Button onClick={() => navigate(`/stock/store/${store.id}`)} variant="secondary" size="sm" title="View Store Stock"><Package size={14}/> Stock</Button>
-                                <Button onClick={() => handleEdit(store)} variant="secondary" size="sm"><Edit size={14}/></Button>
-                                <Button onClick={() => handleDelete(store)} variant="danger" size="sm"><Trash2 size={14}/></Button>
+                                <Button onClick={() => navigate(`/stock/store/${store.id}`)} variant="secondary" size="sm" title="View Store Stock"><Package size={14} /> Stock</Button>
+                                <Button onClick={() => handleEdit(store)} variant="secondary" size="sm"><Edit size={14} /></Button>
+                                <Button onClick={() => handleDelete(store)} variant="danger" size="sm"><Trash2 size={14} /></Button>
                             </div>
                         </Card>
                     ))}
                 </div>
 
-                {loading && <p className="text-center p-4">Loading stores...</p>}
-                {!loading && stores.length === 0 && <p className="text-center p-8 text-contentSecondary">No stores created yet.</p>}
+                {loading && <div className="flex justify-center p-12"><Loader text="Loading stores..." /></div>}
+                {!loading && stores.length === 0 && <p className="text-center p-12 text-slate-400">No stores created yet.</p>}
             </Card>
 
             {isModalOpen && (

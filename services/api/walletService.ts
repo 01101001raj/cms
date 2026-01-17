@@ -31,15 +31,33 @@ const mapRawTransactions = (data: any[]): EnrichedWalletTransaction[] => {
 };
 
 export const createWalletService = (supabase: SupabaseClient) => ({
-    async getWalletTransactionsByDistributor(distributorId: string): Promise<EnrichedWalletTransaction[]> {
-        const { data, error } = await supabase.from('wallet_transactions').select('*, distributors(name)').eq('distributor_id', distributorId);
+    async getWalletTransactionsByDistributor(distributorId: string, dateRange?: { from?: Date; to?: Date }): Promise<EnrichedWalletTransaction[]> {
+        let query = supabase.from('wallet_transactions').select('*, distributors(name)').eq('distributor_id', distributorId);
+
+        if (dateRange?.from) {
+            query = query.gte('date', dateRange.from.toISOString());
+        }
+        if (dateRange?.to) {
+            query = query.lte('date', dateRange.to.toISOString());
+        }
+
+        const { data, error } = await query.order('date', { ascending: false });
         return mapRawTransactions(handleResponse({ data, error }));
     },
-    
-    async getAllWalletTransactions(portalState: PortalState | null): Promise<EnrichedWalletTransaction[]> {
-        const { data, error } = await supabase.from('wallet_transactions').select('*, distributors(name), stores(name)');
+
+    async getAllWalletTransactions(portalState: PortalState | null, dateRange?: { from?: Date; to?: Date }): Promise<EnrichedWalletTransaction[]> {
+        let query = supabase.from('wallet_transactions').select('*, distributors(name), stores(name)');
+
+        if (dateRange?.from) {
+            query = query.gte('date', dateRange.from.toISOString());
+        }
+        if (dateRange?.to) {
+            query = query.lte('date', dateRange.to.toISOString());
+        }
+
+        const { data, error } = await query.order('date', { ascending: false });
         let transactions = handleResponse({ data, error }) || [];
-        
+
         if (portalState?.type === 'store' && portalState.id) {
             const { data: distIds, error: distError } = await supabase.from('distributors').select('id').eq('store_id', portalState.id);
             if (distError) throw distError;
@@ -49,7 +67,7 @@ export const createWalletService = (supabase: SupabaseClient) => ({
 
         return mapRawTransactions(transactions);
     },
-    
+
     async rechargeWallet(distributorId: string, amount: number, username: string, paymentMethod: string, remarks: string, date: string, portal: PortalState | null): Promise<void> {
         if (!portal) throw new Error("Portal context is required.");
 
@@ -75,7 +93,7 @@ export const createWalletService = (supabase: SupabaseClient) => ({
             throw new Error(errorData.detail || 'Failed to recharge wallet');
         }
     },
-    
+
     async rechargeStoreWallet(storeId: string, amount: number, username: string, paymentMethod: string, remarks: string, date: string): Promise<void> {
         // Call backend API instead of directly manipulating database
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';

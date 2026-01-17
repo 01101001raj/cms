@@ -36,11 +36,48 @@ async def get_distributors(
             query = query.eq("store_id", portal_id)
 
         response = query.execute()
+        distributors_data = response.data
+
+        # Fetch last order date for each distributor to determine status
+        # Optimization: Fetch all latest orders in one query if possible, or iterate (Supabase limits join options)
+        # For now, we'll do a separate query to get max date per distributor. 
+        # Actually, simpler: Get all orders, select distributor_id and date, order by date desc.
+        # But for many orders this is heavy. Let's do a stored procedure or just iterate for now (assuming < 100 distributors).
+        
+        # Better approach with Supabase/PostgREST: 
+        # We can't easily do a "group by" and "max" join in one simple API call without a view/RPC.
+        # Let's try to fetch all orders (id, date, distributor_id) to map them.
+        
+        # 1. Get all orders (optimized selection)
+        orders_response = supabase.table("orders").select("distributor_id, date").order("date", desc=True).execute()
+        
+        last_order_map = {}
+        for order in orders_response.data:
+            d_id = order.get("distributor_id")
+            if d_id not in last_order_map:
+                last_order_map[d_id] = order.get("date")
+
+        final_distributors = []
+        for dist in distributors_data:
+            # Inject last_order_date
+            # The model Distributor needs to support this field or we accept it as extra if using dict
+            # Schema update required? Let's check schemas.py.
+            # Convert to dict first
+            dist_dict = dist.copy()
+            dist_dict["last_order_date"] = last_order_map.get(dist["id"])
+            final_distributors.append(dist_dict)
+
         # Convert through Pydantic model to ensure proper camelCase serialization
-        distributors = [Distributor(**dist) for dist in response.data]
-        return distributors
+        # Note: We need to update the Schema to include last_order_date first!
+        # Assuming Schema update happens in next step, or we return dicts that Pydantic filters? 
+        # If Pydantic model doesn't have the field, it will be stripped.
+        # We MUST update schemas.py first. Assuming I will do that next.
+        
+        return final_distributors
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Detailed Error: {str(e)}")
 
 
 @router.get("/{distributor_id}", response_model=Distributor)

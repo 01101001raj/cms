@@ -12,12 +12,14 @@ import DeleteOrderModal from './DeleteOrderModal';
 import { useAuth } from '../hooks/useAuth';
 import Input from './common/Input';
 import Select from './common/Select';
+import DateRangePicker from './common/DateRangePicker';
 import { formatIndianCurrency, formatDateDDMMYYYY } from '../utils/formatting';
 import { useSortableData } from '../hooks/useSortableData';
 import SortableTableHeader from './common/SortableTableHeader';
 import { useNavigate } from 'react-router-dom';
 import { generateAndDownloadInvoice } from '../utils/invoiceGenerator';
 import { generateAndDownloadDispatchNote } from '../utils/dispatchNoteGenerator';
+import Loader from './common/Loader';
 
 // Sub-component for showing dispatch items
 const TransferDetails: React.FC<{ transferId: string }> = React.memo(({ transferId }) => {
@@ -31,19 +33,19 @@ const TransferDetails: React.FC<{ transferId: string }> = React.memo(({ transfer
         });
     }, [transferId]);
 
-    if (loading) return <div className="p-2 text-sm">Loading items...</div>;
+    if (loading) return <div className="p-4"><Loader text="Loading items..." /></div>;
 
     return (
         <div className="bg-card p-4 rounded-lg border border-border">
             <h4 className="font-bold mb-2 text-content">Dispatched Items</h4>
             <div className="overflow-x-auto">
                 <table className="w-full bg-white rounded-md min-w-[500px] text-sm">
-                    <thead>
+                    <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-xs border-b">
                         <tr className="text-left border-b border-border">
-                            <th className="p-2 font-semibold text-contentSecondary">Product</th>
-                            <th className="p-2 font-semibold text-contentSecondary text-center">Quantity</th>
-                            <th className="p-2 font-semibold text-contentSecondary text-right">Unit Value</th>
-                            <th className="p-2 font-semibold text-contentSecondary text-right">Subtotal</th>
+                            <th className="p-3 font-semibold text-contentSecondary">Product</th>
+                            <th className="p-3 font-semibold text-contentSecondary text-center">Quantity</th>
+                            <th className="p-3 font-semibold text-contentSecondary text-right">Unit Value</th>
+                            <th className="p-3 font-semibold text-contentSecondary text-right">Subtotal</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -75,20 +77,20 @@ const OrderDetails: React.FC<{ orderId: string }> = React.memo(({ orderId }) => 
         });
     }, [orderId]);
 
-    if (loading) return <div className="p-2 text-sm">Loading items...</div>
+    if (loading) return <div className="p-4"><Loader text="Loading items..." /></div>
 
     return (
         <div className="bg-card p-4 rounded-lg border border-border">
             <h4 className="font-bold mb-2 text-content">Order Items</h4>
             <div className="overflow-x-auto">
                 <table className="w-full bg-white rounded-md min-w-[500px] text-sm">
-                    <thead>
+                    <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-xs border-b">
                         <tr className="text-left border-b border-border">
-                            <th className="p-2 font-semibold text-contentSecondary">Product</th>
-                            <th className="p-2 font-semibold text-contentSecondary text-center">Delivered</th>
-                            <th className="p-2 font-semibold text-contentSecondary text-center">Returned</th>
-                            <th className="p-2 font-semibold text-contentSecondary text-right">Unit Price</th>
-                            <th className="p-2 font-semibold text-contentSecondary text-right">Subtotal</th>
+                            <th className="p-3 font-semibold text-contentSecondary">Product</th>
+                            <th className="p-3 font-semibold text-contentSecondary text-center">Delivered</th>
+                            <th className="p-3 font-semibold text-contentSecondary text-center">Returned</th>
+                            <th className="p-3 font-semibold text-contentSecondary text-right">Unit Price</th>
+                            <th className="p-3 font-semibold text-contentSecondary text-right">Subtotal</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -140,14 +142,24 @@ const OrderHistory: React.FC = () => {
     const [dispatchStatusFilter, setDispatchStatusFilter] = useState<StockTransferStatus | 'all'>('all');
     const [downloadingNoteId, setDownloadingNoteId] = useState<string | null>(null);
 
+    const getInitialDateRange = () => {
+        const to = new Date();
+        const from = new Date();
+        from.setMonth(to.getMonth() - 1);
+        to.setHours(23, 59, 59, 999);
+        from.setHours(0, 0, 0, 0);
+        return { from, to };
+    };
+    const [dateRange, setDateRange] = useState(getInitialDateRange());
+
     const fetchData = useCallback(async () => {
         if (!portal) return;
         setLoading(true);
         try {
             const [orderData, distributorData, transferData, storeData] = await Promise.all([
-                api.getOrders(portal),
+                api.getOrders(portal, dateRange),
                 api.getDistributors(portal),
-                api.getStockTransfers(),
+                api.getStockTransfers(dateRange),
                 api.getStores(),
             ]);
             setOrders(orderData);
@@ -159,7 +171,7 @@ const OrderHistory: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [portal]);
+    }, [portal, dateRange]);
 
     useEffect(() => {
         fetchData();
@@ -354,13 +366,14 @@ const OrderHistory: React.FC = () => {
                                     </Select>
                                 )}
                                 <Select value={orderStatusFilter} onChange={(e) => setOrderStatusFilter(e.target.value as any)}><option value="all">All Statuses</option><option value={OrderStatus.PENDING}>Pending</option><option value={OrderStatus.DELIVERED}>Delivered</option></Select>
+                                <div className="min-w-[250px]"><DateRangePicker label="Filter Date" value={dateRange} onChange={setDateRange} /></div>
                                 <Input placeholder="Search by Order ID or Name..." value={orderSearchTerm} onChange={(e) => setOrderSearchTerm(e.target.value)} icon={<Search size={16} />} />
                             </div>
                         </div>
                         {/* Desktop Table View */}
                         <div className="overflow-x-auto hidden md:block">
                             <table className="w-full text-left min-w-[700px] text-sm">
-                                <thead className="bg-slate-100">
+                                <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-xs h-12 border-b">
                                     <tr>
                                         <th className="p-3 w-12"></th>
                                         <SortableTableHeader label="Order ID" sortKey="id" requestSort={requestOrderSort} sortConfig={orderSortConfig} />
@@ -480,7 +493,7 @@ const OrderHistory: React.FC = () => {
                             })}
                         </div>
 
-                        {loading ? <p className="text-center p-4">Loading...</p> : sortedOrders.length === 0 && <p className="text-center p-4 text-contentSecondary">No orders found.</p>}
+                        {loading ? <div className="p-8"><Loader text="Loading orders..." /></div> : sortedOrders.length === 0 && <p className="text-center p-8 text-contentSecondary">No orders found.</p>}
                     </div>
                 )}
 
@@ -491,13 +504,14 @@ const OrderHistory: React.FC = () => {
                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full sm:w-auto">
                                 <Button onClick={handleExportDispatchesCsv} variant="secondary" size="sm" disabled={sortedTransfers.length === 0}><Download size={14} /> Export CSV</Button>
                                 <Select value={dispatchStatusFilter} onChange={(e) => setDispatchStatusFilter(e.target.value as any)}><option value="all">All Statuses</option><option value={StockTransferStatus.PENDING}>Pending</option><option value={StockTransferStatus.DELIVERED}>Delivered</option></Select>
+                                <div className="min-w-[250px]"><DateRangePicker label="Filter Date" value={dateRange} onChange={setDateRange} /></div>
                                 <Input placeholder="Search by ID or Store..." value={dispatchSearchTerm} onChange={(e) => setDispatchSearchTerm(e.target.value)} icon={<Search size={16} />} />
                             </div>
                         </div>
                         {/* Desktop Table View */}
                         <div className="overflow-x-auto hidden md:block">
                             <table className="w-full text-left min-w-[700px] text-sm">
-                                <thead className="bg-slate-100">
+                                <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-xs h-12 border-b">
                                     <tr>
                                         <th className="p-3 w-12"></th>
                                         <SortableTableHeader label="Dispatch ID" sortKey="id" requestSort={requestTransferSort} sortConfig={transferSortConfig} />
@@ -578,7 +592,7 @@ const OrderHistory: React.FC = () => {
                             ))}
                         </div>
 
-                        {loading ? <p className="text-center p-4">Loading...</p> : sortedTransfers.length === 0 && <p className="text-center p-4 text-contentSecondary">No dispatches found.</p>}
+                        {loading ? <div className="p-8"><Loader text="Loading dispatches..." /></div> : sortedTransfers.length === 0 && <p className="text-center p-8 text-contentSecondary">No dispatches found.</p>}
                     </div>
                 )}
             </Card >

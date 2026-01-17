@@ -14,10 +14,12 @@ async def get_wallet_transactions(
     store_id: Optional[str] = Query(None),
     portal_type: Optional[str] = Query(None),
     portal_id: Optional[str] = Query(None),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
     supabase: Client = Depends(get_supabase_client)
 ):
     """
-    Get wallet transactions, optionally filtered by distributor, store, or portal
+    Get wallet transactions, optionally filtered by distributor, store, portal, or date range
     """
     try:
         query = supabase.table("wallet_transactions").select("*")
@@ -32,6 +34,11 @@ async def get_wallet_transactions(
             dist_ids = [d["id"] for d in dist_response.data]
             if dist_ids:
                 query = query.in_("distributor_id", dist_ids)
+
+        if start_date:
+            query = query.gte("date", start_date)
+        if end_date:
+            query = query.lte("date", end_date)
 
         response = query.order("date", desc=True).execute()
         return response.data

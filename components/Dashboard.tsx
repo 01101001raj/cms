@@ -11,6 +11,7 @@ import { formatIndianCurrency, formatIndianNumber, formatDateDDMMYYYY, formatDat
 import { useSortableData } from '../hooks/useSortableData';
 import SortableTableHeader from './common/SortableTableHeader';
 import { useAuth } from '../hooks/useAuth';
+import Loader from './common/Loader';
 
 const StatCardSkeleton: React.FC = () => (
     <Card>
@@ -279,7 +280,7 @@ const Dashboard: React.FC = () => {
                                 <div className="flex flex-col">
                                     <span className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Total Inventory</span>
                                     <span className="text-3xl font-bold text-gray-900">{formatIndianNumber(totalPlantStockUnits + totalStoreStockUnits)}</span>
-                                    <div className="mt-4 flex items-center text-xs text-indigo-600 font-medium bg-indigo-50 w-fit px-2 py-1 rounded-md">
+                                    <div className="mt-4 flex items-center text-xs text-primary font-medium bg-blue-50 w-fit px-2 py-1 rounded-md">
                                         Units across all locations
                                     </div>
                                 </div>
@@ -321,7 +322,7 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 <div className="p-6">
-                    {isLoadingPrimaryData ? <div className="text-center p-12 text-slate-400">Loading insights...</div> : (
+                    {isLoadingPrimaryData ? <Loader text="Loading insights..." /> : (
                         <>
                             {activeTab === 'overview' && (
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -422,7 +423,7 @@ const Dashboard: React.FC = () => {
                                     </div>
                                     <div className="overflow-x-auto rounded-lg border border-slate-100">
                                         <table className="w-full text-left min-w-[1000px] text-sm">
-                                            <thead className="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider text-xs">
+                                            <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-xs h-12 border-b">
                                                 <tr>
                                                     <SortableTableHeader label="Distributor" sortKey="name" requestSort={requestSort} sortConfig={sortConfig} className="p-4" />
                                                     <SortableTableHeader label="Agent Code" sortKey="agentCode" requestSort={requestSort} sortConfig={sortConfig} className="p-4" />
@@ -479,7 +480,7 @@ const Dashboard: React.FC = () => {
 
                                     <div className="overflow-x-auto rounded-lg border border-slate-100">
                                         <table className="w-full text-left text-sm">
-                                            <thead className="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider text-xs">
+                                            <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-xs h-12 border-b">
                                                 <tr>
                                                     <SortableTableHeader label="SKU Name" sortKey="skuName" requestSort={requestStockSort} sortConfig={stockSortConfig} className="p-4" />
                                                     <SortableTableHeader label="On Hand" sortKey="quantity" requestSort={requestStockSort} sortConfig={stockSortConfig} className="p-4 text-right" />

@@ -5,6 +5,7 @@ import { companyService } from '../services/api/companyService';
 import Card from './common/Card';
 import Input from './common/Input';
 import Button from './common/Button';
+import Loader from './common/Loader';
 import { CheckCircle, AlertCircle } from 'lucide-react';
 
 const SettingsPage: React.FC = () => {
@@ -94,7 +95,7 @@ const SettingsPage: React.FC = () => {
                 The information entered here will be saved to the database and used on all generated invoices.
             </p>
 
-            {loading && <div className="text-center py-4 text-blue-600">Syncing with server...</div>}
+            {loading && <div className="flex justify-center p-4"><Loader text="Syncing with server..." /></div>}
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                 <Input

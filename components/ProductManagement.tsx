@@ -8,6 +8,7 @@ import { Plus, Edit, Trash2, Package, DollarSign, Info, History } from 'lucide-r
 import { formatIndianCurrency } from '../utils/formatting';
 import { api } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
+import Loader from './common/Loader';
 
 const ProductManagement: React.FC = () => {
     const { currentUser } = useAuth();
@@ -201,81 +202,80 @@ const ProductManagement: React.FC = () => {
 
             <Card>
                 <div className="overflow-x-auto">
-                    <table className="w-full">
-                        <thead>
-                            <tr className="border-b border-border">
-                                <th className="p-3 text-left font-semibold text-contentSecondary">SKU</th>
-                                <th className="p-3 text-left font-semibold text-contentSecondary">Product Name</th>
-                                <th className="p-3 text-left font-semibold text-contentSecondary">Category</th>
-                                <th className="p-3 text-left font-semibold text-contentSecondary">Type</th>
-                                <th className="p-3 text-right font-semibold text-contentSecondary">Carton Size</th>
-                                <th className="p-3 text-right font-semibold text-contentSecondary">HSN Code</th>
-                                <th className="p-3 text-right font-semibold text-contentSecondary">GST %</th>
-                                <th className="p-3 text-right font-semibold text-contentSecondary">Net Price</th>
-                                <th className="p-3 text-right font-semibold text-contentSecondary">Gross Price</th>
-                                <th className="p-3 text-left font-semibold text-contentSecondary">Status</th>
-                                <th className="p-3 text-center font-semibold text-contentSecondary">Actions</th>
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-xs h-12 border-b">
+                            <tr>
+                                <th className="px-4 py-3 text-left font-semibold text-slate-500">SKU</th>
+                                <th className="px-4 py-3 text-left font-semibold text-slate-500">Product Name</th>
+                                <th className="px-4 py-3 text-left font-semibold text-slate-500">Category</th>
+                                <th className="px-4 py-3 text-left font-semibold text-slate-500">Type</th>
+                                <th className="px-4 py-3 text-right font-semibold text-slate-500">Carton Size</th>
+                                <th className="px-4 py-3 text-right font-semibold text-slate-500">HSN Code</th>
+                                <th className="px-4 py-3 text-right font-semibold text-slate-500">GST %</th>
+                                <th className="px-4 py-3 text-right font-semibold text-slate-500">Net Price</th>
+                                <th className="px-4 py-3 text-right font-semibold text-slate-500">Gross Price</th>
+                                <th className="px-4 py-3 text-left font-semibold text-slate-500">Status</th>
+                                <th className="px-4 py-3 text-center font-semibold text-slate-500">Actions</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            {products.length === 0 ? (
-                                <tr>
-                                    <td colSpan={11} className="p-8 text-center text-contentSecondary">
-                                        <Package size={48} className="mx-auto mb-2 opacity-50" />
-                                        <p>No products found. Add your first product to get started.</p>
-                                    </td>
-                                </tr>
-                            ) : (
-                                products
-                                    .filter(product =>
-                                        activeTab === 'active'
-                                            ? product.status !== ProductStatus.DISCONTINUED
-                                            : product.status === ProductStatus.DISCONTINUED
-                                    )
-                                    .map((product) => (
-                                        <tr key={product.id} className="border-b border-border hover:bg-background">
-                                            <td className="p-3 font-mono text-sm">{product.id}</td>
-                                            <td className="p-3 font-medium">{product.name}</td>
-                                            <td className="p-3 text-sm">{product.category || '-'}</td>
-                                            <td className="p-3 text-sm">{product.productType || '-'}</td>
-                                            <td className="p-3 text-right text-sm">
-                                                {product.cartonSize ? `${product.cartonSize} ${product.productType === ProductType.VOLUME ? 'L' : 'kg'}` : '-'}
-                                            </td>
-                                            <td className="p-3 text-right text-sm font-mono">{product.hsnCode || '-'}</td>
-                                            <td className="p-3 text-right text-sm">{product.gstPercentage}%</td>
-                                            <td className="p-3 text-right text-sm">{formatIndianCurrency(product.priceNetCarton || 0)}</td>
-                                            <td className="p-3 text-right font-medium">{formatIndianCurrency(product.priceGrossCarton || product.price)}</td>
-                                            <td className="p-3">
-                                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${product.status === ProductStatus.ACTIVE ? 'bg-green-100 text-green-800' :
-                                                        product.status === ProductStatus.DISCONTINUED ? 'bg-red-100 text-red-800' :
-                                                            'bg-yellow-100 text-yellow-800'
-                                                    }`}>
-                                                    {product.status || 'Active'}
-                                                </span>
-                                            </td>
-                                            <td className="p-3">
-                                                <div className="flex justify-center gap-2">
-                                                    <button
-                                                        onClick={() => handleOpenModal(product)}
-                                                        className="p-1 hover:bg-background rounded"
-                                                        title="Edit"
-                                                    >
-                                                        <Edit size={16} className="text-primary" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDelete(product.id)}
-                                                        className="p-1 hover:bg-background rounded"
-                                                        title="Delete"
-                                                    >
-                                                        <Trash2 size={16} className="text-red-600" />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
-                            )}
+                        <tbody className="divide-y divide-slate-100">
+                            {products
+                                .filter(product =>
+                                    activeTab === 'active'
+                                        ? product.status !== ProductStatus.DISCONTINUED
+                                        : product.status === ProductStatus.DISCONTINUED
+                                )
+                                .map((product) => (
+                                    <tr key={product.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-4 py-3 font-mono text-xs text-slate-500">{product.id}</td>
+                                        <td className="px-4 py-3 font-medium text-slate-900">{product.name}</td>
+                                        <td className="px-4 py-3 text-slate-600">{product.category || '-'}</td>
+                                        <td className="px-4 py-3 text-slate-600">{product.productType || '-'}</td>
+                                        <td className="px-4 py-3 text-right text-slate-600">
+                                            {product.cartonSize ? `${product.cartonSize} ${product.productType === ProductType.VOLUME ? 'L' : 'kg'}` : '-'}
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-mono text-xs text-slate-500">{product.hsnCode || '-'}</td>
+                                        <td className="px-4 py-3 text-right text-slate-600">{product.gstPercentage}%</td>
+                                        <td className="px-4 py-3 text-right text-slate-600">{formatIndianCurrency(product.priceNetCarton || 0)}</td>
+                                        <td className="px-4 py-3 text-right font-bold text-slate-800">{formatIndianCurrency(product.priceGrossCarton || product.price)}</td>
+                                        <td className="px-4 py-3">
+                                            <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${product.status === ProductStatus.ACTIVE ? 'bg-green-100 text-green-700' :
+                                                product.status === ProductStatus.DISCONTINUED ? 'bg-red-100 text-red-700' :
+                                                    'bg-yellow-100 text-yellow-700'
+                                                }`}>
+                                                {product.status || 'Active'}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 text-center">
+                                            <div className="flex justify-center gap-2">
+                                                <button
+                                                    onClick={() => handleOpenModal(product)}
+                                                    className="p-1.5 hover:bg-slate-100 rounded-full transition-colors text-blue-600"
+                                                    title="Edit"
+                                                >
+                                                    <Edit size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(product.id)}
+                                                    className="p-1.5 hover:bg-red-50 rounded-full transition-colors text-red-600"
+                                                    title="Delete"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            }
                         </tbody>
                     </table>
+                    {loading && <div className="flex justify-center p-12"><Loader text="Loading products..." /></div>}
+                    {!loading && products.length === 0 && (
+                        <div className="p-12 text-center text-slate-400">
+                            <Package size={48} className="mx-auto mb-4 opacity-20" />
+                            <p>No products found. Add your first product to get started.</p>
+                        </div>
+                    )}
                 </div>
             </Card>
 

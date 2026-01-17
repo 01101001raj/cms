@@ -13,31 +13,33 @@ import { Wallet, Search, Download, ChevronRight, ChevronDown } from 'lucide-reac
 import { formatIndianCurrency, formatDateTimeDDMMYYYY } from '../utils/formatting';
 import Button from './common/Button';
 
+import Loader from './common/Loader';
+
 const TransactionDetails: React.FC<{ transaction: EnrichedWalletTransaction }> = ({ transaction }) => {
     return (
         <div className="bg-slate-50 p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-sm">
             <div>
-                <p className="font-semibold text-contentSecondary text-xs">Transaction ID</p>
-                <p className="font-mono text-content">{transaction.id}</p>
+                <p className="font-semibold text-slate-500 text-xs text-xs">Transaction ID</p>
+                <p className="font-mono text-slate-700">{transaction.id}</p>
             </div>
-             <div>
-                <p className="font-semibold text-contentSecondary text-xs">Payment Method</p>
-                <p className="text-content">{transaction.paymentMethod || 'N/A'}</p>
+            <div>
+                <p className="font-semibold text-slate-500 text-xs text-xs">Payment Method</p>
+                <p className="text-slate-700">{transaction.paymentMethod || 'N/A'}</p>
             </div>
-             <div>
-                <p className="font-semibold text-contentSecondary text-xs">Related To</p>
-                <p className="font-mono text-content">
+            <div>
+                <p className="font-semibold text-slate-500 text-xs text-xs">Related To</p>
+                <p className="font-mono text-slate-700">
                     {transaction.orderId ? `Order: ${transaction.orderId}` : transaction.transferId ? `Transfer: ${transaction.transferId}` : 'N/A'}
                 </p>
             </div>
-             <div>
-                <p className="font-semibold text-contentSecondary text-xs">Initiated By</p>
-                <p className="text-content">{transaction.initiatedBy}</p>
+            <div>
+                <p className="font-semibold text-slate-500 text-xs text-xs">Initiated By</p>
+                <p className="text-slate-700">{transaction.initiatedBy}</p>
             </div>
             {transaction.remarks && (
                 <div className="sm:col-span-2">
-                    <p className="font-semibold text-contentSecondary text-xs">Remarks</p>
-                    <p className="text-content italic">"{transaction.remarks}"</p>
+                    <p className="font-semibold text-slate-500 text-xs text-xs">Remarks</p>
+                    <p className="text-slate-700 italic">"{transaction.remarks}"</p>
                 </div>
             )}
         </div>
@@ -74,7 +76,7 @@ const CentralWalletPage: React.FC = () => {
         setLoading(true);
         try {
             const [txData, distData, storeData] = await Promise.all([
-                api.getAllWalletTransactions(portal),
+                api.getAllWalletTransactions(portal, dateRange),
                 api.getDistributors(portal),
                 api.getStores()
             ]);
@@ -86,7 +88,7 @@ const CentralWalletPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [portal]);
+    }, [portal, dateRange]);
 
     useEffect(() => {
         fetchData();
@@ -95,7 +97,7 @@ const CentralWalletPage: React.FC = () => {
     const formatTransactionType = (type: string) => {
         return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     };
-    
+
     const handleAccountTypeChange = (type: 'all' | 'distributor' | 'store') => {
         setAccountTypeFilter(type);
         setDistributorFilter('all');
@@ -104,9 +106,8 @@ const CentralWalletPage: React.FC = () => {
 
     const filteredTransactions = useMemo(() => {
         return transactions.filter(tx => {
+            // Server-side filtering handles date range
             const txDate = new Date(tx.date);
-            if (dateRange.from && txDate < dateRange.from) return false;
-            if (dateRange.to && txDate > dateRange.to) return false;
 
             if (accountTypeFilter !== 'all') {
                 if (accountTypeFilter === 'distributor' && tx.accountType !== 'Distributor') return false;
@@ -114,7 +115,7 @@ const CentralWalletPage: React.FC = () => {
             }
 
             if (typeFilter !== 'all' && tx.type !== typeFilter) return false;
-            
+
             if (distributorFilter !== 'all' && tx.distributorId !== distributorFilter) return false;
             if (storeFilter !== 'all' && tx.storeId !== storeFilter) return false;
 
@@ -185,7 +186,7 @@ const CentralWalletPage: React.FC = () => {
     }
 
     if (loading) {
-        return <div className="text-center p-8">Loading wallet data...</div>;
+        return <Loader fullScreen text="Loading wallet data..." />;
     }
 
     return (
@@ -211,12 +212,12 @@ const CentralWalletPage: React.FC = () => {
                             <option key={type} value={type}>{formatTransactionType(type)}</option>
                         ))}
                     </Select>
-                     <Select label="Filter by Account Type" value={accountTypeFilter} onChange={e => handleAccountTypeChange(e.target.value as any)}>
+                    <Select label="Filter by Account Type" value={accountTypeFilter} onChange={e => handleAccountTypeChange(e.target.value as any)}>
                         <option value="all">All Accounts</option>
                         <option value="distributor">Distributors</option>
                         <option value="store">Stores</option>
                     </Select>
-                    
+
                     {accountTypeFilter === 'distributor' ? (
                         <Select label="Filter by Distributor" value={distributorFilter} onChange={e => setDistributorFilter(e.target.value)}>
                             <option value="all">All Distributors</option>
@@ -238,39 +239,39 @@ const CentralWalletPage: React.FC = () => {
 
                 {/* Desktop Table View */}
                 <div className="overflow-x-auto hidden md:block">
-                    <table className="w-full text-left min-w-[900px] text-sm">
-                        <thead className="bg-slate-100">
+                    <table className="w-full text-left min-w-[900px] text-sm text-left">
+                        <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-xs h-12 border-b">
                             <tr>
-                                <th className="p-3 w-12"></th>
-                                <SortableTableHeader label="Date" sortKey="date" requestSort={requestSort} sortConfig={sortConfig} />
-                                <SortableTableHeader label="Account" sortKey="accountName" requestSort={requestSort} sortConfig={sortConfig} />
-                                <SortableTableHeader label="Type" sortKey="type" requestSort={requestSort} sortConfig={sortConfig} />
-                                <SortableTableHeader label="Amount" sortKey="amount" requestSort={requestSort} sortConfig={sortConfig} className="text-right" />
-                                <SortableTableHeader label="Balance After" sortKey="balanceAfter" requestSort={requestSort} sortConfig={sortConfig} className="text-right" />
+                                <th className="px-4 py-3 w-12"></th>
+                                <SortableTableHeader label="Date" sortKey="date" requestSort={requestSort} sortConfig={sortConfig} className="px-4 py-3" />
+                                <SortableTableHeader label="Account" sortKey="accountName" requestSort={requestSort} sortConfig={sortConfig} className="px-4 py-3" />
+                                <SortableTableHeader label="Type" sortKey="type" requestSort={requestSort} sortConfig={sortConfig} className="px-4 py-3" />
+                                <SortableTableHeader label="Amount" sortKey="amount" requestSort={requestSort} sortConfig={sortConfig} className="text-right px-4 py-3" />
+                                <SortableTableHeader label="Balance After" sortKey="balanceAfter" requestSort={requestSort} sortConfig={sortConfig} className="text-right px-4 py-3" />
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-slate-100">
                             {sortedTransactions.map(tx => (
                                 <React.Fragment key={tx.id}>
-                                    <tr className="border-b border-border last:border-b-0 hover:bg-slate-50 cursor-pointer" onClick={() => toggleExpand(tx.id)}>
-                                        <td className="p-3 text-center">
+                                    <tr className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => toggleExpand(tx.id)}>
+                                        <td className="px-4 py-3 text-center">
                                             <button className="p-1 rounded-full hover:bg-slate-200">
                                                 <ChevronRight size={16} className={`transition-transform ${expandedTxId === tx.id ? 'rotate-90' : ''}`} />
                                             </button>
                                         </td>
-                                        <td className="p-3 whitespace-nowrap">{formatDateTimeDDMMYYYY(tx.date)}</td>
-                                        <td className="p-3 font-medium">
+                                        <td className="px-4 py-3 whitespace-nowrap text-slate-700">{formatDateTimeDDMMYYYY(tx.date)}</td>
+                                        <td className="px-4 py-3 font-medium text-slate-900">
                                             {tx.accountName}
                                             <span className={`block text-xs mt-1 px-2 py-0.5 rounded-full w-fit ${tx.accountType === 'Distributor' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}`}>{tx.accountType}</span>
                                         </td>
-                                        <td className="p-3">{formatTransactionType(tx.type)}</td>
-                                        <td className={`p-3 font-semibold text-right ${tx.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                        <td className="px-4 py-3 text-slate-600">{formatTransactionType(tx.type)}</td>
+                                        <td className={`px-4 py-3 font-semibold text-right ${tx.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                             {tx.amount >= 0 ? `+${formatIndianCurrency(tx.amount)}` : formatIndianCurrency(tx.amount)}
                                         </td>
-                                        <td className="p-3 font-bold text-right">{formatIndianCurrency(tx.balanceAfter)}</td>
+                                        <td className="px-4 py-3 font-bold text-right text-slate-800">{formatIndianCurrency(tx.balanceAfter)}</td>
                                     </tr>
                                     {expandedTxId === tx.id && (
-                                        <tr className="border-b border-border">
+                                        <tr className="border-b border-slate-100">
                                             <td colSpan={6} className="p-0">
                                                 <TransactionDetails transaction={tx} />
                                             </td>
@@ -307,7 +308,7 @@ const CentralWalletPage: React.FC = () => {
                                     <span>{formatIndianCurrency(tx.balanceAfter)}</span>
                                 </div>
                             </div>
-                            {expandedTxId === tx.id && <div className="mt-4 pt-4 border-t"><TransactionDetails transaction={tx}/></div>}
+                            {expandedTxId === tx.id && <div className="mt-4 pt-4 border-t"><TransactionDetails transaction={tx} /></div>}
                         </Card>
                     ))}
                 </div>

@@ -139,13 +139,22 @@ async def create_stock_transfer(
 
 @router.get("/transfers", response_model=List[StockTransfer])
 async def get_stock_transfers(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
     supabase: Client = Depends(get_supabase_client)
 ):
     """
-    Get all stock transfers
+    Get all stock transfers, optionally filtered by date range
     """
     try:
-        response = supabase.table("stock_transfers").select("*, stores(name)").order("date", desc=True).execute()
+        query = supabase.table("stock_transfers").select("*, stores(name)")
+        
+        if start_date:
+            query = query.gte("date", start_date)
+        if end_date:
+            query = query.lte("date", end_date)
+            
+        response = query.order("date", desc=True).execute()
         return response.data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

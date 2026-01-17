@@ -8,6 +8,7 @@ import { useAuth } from '../hooks/useAuth';
 import { CheckCircle, Gift, Star, FileText, AlertTriangle, Sparkles, Send, ShoppingCart, History, Search, Building2, Wallet, CreditCard, User, Phone, MapPin } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { formatIndianCurrency } from '../utils/formatting';
+import Loader from './common/Loader';
 import Input from './common/Input';
 
 interface ProductQuantity {
@@ -490,6 +491,10 @@ const PlaceOrder: React.FC = () => {
 
     if (lastSuccessData) {
         return <SuccessScreen />;
+    }
+
+    if (isLoading) {
+        return <Loader fullScreen text="Processing order..." />;
     }
 
     const isAccountSelected = !!(selectedDistributorId || selectedStoreId);

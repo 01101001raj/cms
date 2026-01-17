@@ -12,6 +12,7 @@ import { useSortableData } from '../hooks/useSortableData';
 import SortableTableHeader from './common/SortableTableHeader';
 import DateRangePicker from './common/DateRangePicker';
 import { useNavigate } from 'react-router-dom';
+import Loader from './common/Loader';
 
 
 const CentralStockPage: React.FC = () => {
@@ -253,8 +254,8 @@ const CentralStockPage: React.FC = () => {
                             <Button onClick={handleExportStockCsv} variant="secondary" size="sm" disabled={sortedStock.length === 0}><Download size={14} /> Export CSV</Button>
                         </div>
                         <div className="overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar">
-                            <table className="w-full text-sm">
-                                <thead className="bg-slate-100 sticky top-0 z-10">
+                            <table className="w-full text-sm text-left">
+                                <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-xs h-12 border-b sticky top-0 z-10">
                                     <tr>
                                         <SortableTableHeader label="Product Name" sortKey="skuName" requestSort={requestStockSort} sortConfig={stockSortConfig} />
                                         <SortableTableHeader label="On Hand" sortKey="quantity" requestSort={requestStockSort} sortConfig={stockSortConfig} className="text-right" />
@@ -262,52 +263,52 @@ const CentralStockPage: React.FC = () => {
                                         <SortableTableHeader label="Available" sortKey="quantity" requestSort={requestStockSort} sortConfig={stockSortConfig} className="text-right" />
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody className="divide-y divide-slate-100">
                                     {sortedStock.map(item => (
-                                        <tr key={item.skuId} className="border-b last:border-0 hover:bg-slate-50">
-                                            <td className="p-3 font-medium">{item.skuName}</td>
-                                            <td className="p-3 text-right">{formatIndianNumber(item.quantity)}</td>
-                                            <td className="p-3 text-right text-yellow-700">{formatIndianNumber(item.reserved)}</td>
-                                            <td className="p-3 font-semibold text-right text-green-700">{formatIndianNumber(item.quantity - item.reserved)}</td>
+                                        <tr key={item.skuId} className="hover:bg-slate-50 transition-colors">
+                                            <td className="px-4 py-3 font-medium text-slate-900">{item.skuName}</td>
+                                            <td className="px-4 py-3 text-right">{formatIndianNumber(item.quantity)}</td>
+                                            <td className="px-4 py-3 text-right text-yellow-700">{formatIndianNumber(item.reserved)}</td>
+                                            <td className="px-4 py-3 font-bold text-right text-green-700">{formatIndianNumber(item.quantity - item.reserved)}</td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
-                            {loading && <p className="text-center p-4">Loading stock...</p>}
-                            {!loading && stock.length === 0 && <p className="text-center p-8 text-contentSecondary">No stock found.</p>}
+                            {loading && <div className="flex justify-center p-12"><Loader text="Loading inventory..." /></div>}
+                            {!loading && stock.length === 0 && <p className="text-center p-12 text-slate-400">No stock found.</p>}
                         </div>
                     </Card>
 
                     <Card>
-                        <h3 className="text-lg font-semibold mb-4">Add New Production (Bulk Entry)</h3>
-                        <div className="text-sm text-contentSecondary mb-4">
+                        <h3 className="text-lg font-bold text-slate-800 mb-4">Add New Production (Bulk Entry)</h3>
+                        <div className="text-sm text-slate-500 mb-4">
                             Enter the quantity produced for each product below. You can leave fields empty if no production occurred for that product.
                         </div>
 
-                        <div className="overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar border rounded-lg">
-                            <table className="w-full text-sm">
-                                <thead className="bg-slate-100 sticky top-0 z-10">
+                        <div className="overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar border rounded-xl">
+                            <table className="w-full text-sm text-left">
+                                <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-xs h-12 border-b sticky top-0 z-10">
                                     <tr>
-                                        <th className="p-3 text-left font-semibold text-contentSecondary">Product</th>
-                                        <th className="p-3 text-right font-semibold text-contentSecondary">Current Stock</th>
-                                        <th className="p-3 text-right font-semibold text-contentSecondary w-32">Add Qty</th>
+                                        <th className="px-4 py-3">Product</th>
+                                        <th className="px-4 py-3 text-right">Current Stock</th>
+                                        <th className="px-4 py-3 text-right w-32">Add Qty</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody className="divide-y divide-slate-100">
                                     {sortedSkusForEntry.map(sku => {
                                         const currentStock = stock.find(s => s.skuId === sku.id)?.quantity || 0;
                                         const qtyValue = productionQuantities[sku.id] || '';
 
                                         return (
-                                            <tr key={sku.id} className={`border-b last:border-0 ${qtyValue ? 'bg-blue-50/50' : 'hover:bg-slate-50'}`}>
-                                                <td className="p-3 font-medium">
+                                            <tr key={sku.id} className={`transition-colors ${qtyValue ? 'bg-blue-50/50' : 'hover:bg-slate-50'}`}>
+                                                <td className="px-4 py-3 font-medium text-slate-900">
                                                     {sku.name}
-                                                    <div className="text-xs text-contentSecondary">{sku.category} • {sku.unitSize}ml</div>
+                                                    <div className="text-xs text-slate-500">{sku.category} • {sku.unitSize}ml</div>
                                                 </td>
-                                                <td className="p-3 text-right text-contentSecondary">
+                                                <td className="px-4 py-3 text-right text-slate-500">
                                                     {formatIndianNumber(currentStock)}
                                                 </td>
-                                                <td className="p-2 text-right">
+                                                <td className="px-4 py-2 text-right">
                                                     <Input
                                                         type="number"
                                                         value={qtyValue}
@@ -325,15 +326,15 @@ const CentralStockPage: React.FC = () => {
                         </div>
 
                         <div className="mt-6 border-t pt-4 flex justify-between items-center">
-                            <div className="text-sm font-medium">
-                                Total Items: <span className="text-primary">{Object.values(productionQuantities).filter(q => parseInt(q) > 0).length}</span>
+                            <div className="text-sm font-medium text-slate-700">
+                                Total Items: <span className="text-primary font-bold">{Object.values(productionQuantities).filter(q => parseInt(q) > 0).length}</span>
                             </div>
-                            <Button onClick={handleAddProduction} isLoading={isSubmitting} disabled={isSubmitting}><Save size={16} /> Save All Production</Button>
+                            <Button onClick={handleAddProduction} isLoading={isSubmitting} disabled={isSubmitting}><Save size={16} /> Save Production</Button>
                         </div>
 
                         {statusMessage && (
-                            <div className={`mt-4 flex items-center gap-2 text-sm p-3 rounded-lg ${statusMessage.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                {statusMessage.type === 'success' ? <CheckCircle /> : <XCircle />} {statusMessage.text}
+                            <div className={`mt-4 flex items-center gap-2 text-sm p-4 rounded-xl ${statusMessage.type === 'success' ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
+                                {statusMessage.type === 'success' ? <CheckCircle size={18} /> : <XCircle size={18} />} {statusMessage.text}
                             </div>
                         )}
                     </Card>
@@ -342,11 +343,11 @@ const CentralStockPage: React.FC = () => {
 
             {activeTab === 'ledger' && (
                 <Card>
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold">Plant Stock Ledger</h3>
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-lg font-bold text-slate-800">Plant Stock Ledger</h3>
                         <Button onClick={handleExportLedgerCsv} variant="secondary" size="sm" disabled={sortedLedger.length === 0}><Download size={14} /> Export CSV</Button>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end p-4 border-b border-border mb-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end p-4 bg-slate-50 rounded-xl mb-6 border border-slate-100">
                         <DateRangePicker label="Filter by Date" value={ledgerDateRange} onChange={setLedgerDateRange} />
                         <Select label="Filter by Product" value={ledgerSkuFilter} onChange={e => setLedgerSkuFilter(e.target.value)}>
                             <option value="all">All Products</option>
@@ -359,8 +360,8 @@ const CentralStockPage: React.FC = () => {
                             )}
                         </Select>
                     </div>
-                    <div className="p-4 border-b border-border">
-                        <h4 className="text-md font-semibold mb-2 flex items-center gap-2"><BarChart2 size={18} /> Summary for Selected Period</h4>
+                    <div className="p-4 rounded-xl border border-slate-100 mb-6">
+                        <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2"><BarChart2 size={16} /> Summary for Selected Period</h4>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                             <SummaryCard title="Units Produced" value={ledgerSummary.produced} />
                             <SummaryCard title="Units Sold" value={ledgerSummary.sold} />
@@ -369,34 +370,34 @@ const CentralStockPage: React.FC = () => {
                         </div>
                     </div>
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="bg-slate-100">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-xs h-12 border-b">
                                 <tr>
                                     <SortableTableHeader label="Date" sortKey="date" requestSort={requestLedgerSort} sortConfig={ledgerSortConfig} />
                                     <SortableTableHeader label="Product" sortKey="skuId" requestSort={requestLedgerSort} sortConfig={ledgerSortConfig} />
                                     <SortableTableHeader label="Type" sortKey="type" requestSort={requestLedgerSort} sortConfig={ledgerSortConfig} />
                                     <SortableTableHeader label="Quantity Change" sortKey="quantityChange" requestSort={requestLedgerSort} sortConfig={ledgerSortConfig} className="text-right" />
                                     <SortableTableHeader label="Balance After" sortKey="balanceAfter" requestSort={requestLedgerSort} sortConfig={ledgerSortConfig} className="text-right" />
-                                    <th className="p-3 font-semibold text-contentSecondary">Notes</th>
+                                    <th className="px-4 py-3 font-semibold text-slate-500">Notes</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-slate-100">
                                 {sortedLedger.map(entry => (
-                                    <tr key={entry.id} className="border-b last:border-0 hover:bg-slate-50">
-                                        <td className="p-3 whitespace-nowrap">{formatDateTimeDDMMYYYY(entry.date)}</td>
-                                        <td className="p-3 font-medium">{skuMap.get(entry.skuId) || 'Unknown SKU'}</td>
-                                        <td className="p-3">{entry.type.replace(/_/g, ' ')}</td>
-                                        <td className={`p-3 text-right font-semibold ${entry.quantityChange > 0 ? 'text-green-600' : (entry.quantityChange < 0 ? 'text-red-600' : 'text-contentSecondary')}`}>
+                                    <tr key={entry.id} className="hover:bg-slate-50 transition-colors">
+                                        <td className="px-4 py-3 whitespace-nowrap text-slate-500">{formatDateTimeDDMMYYYY(entry.date)}</td>
+                                        <td className="px-4 py-3 font-medium text-slate-900">{skuMap.get(entry.skuId) || 'Unknown SKU'}</td>
+                                        <td className="px-4 py-3 text-slate-600">{entry.type.replace(/_/g, ' ')}</td>
+                                        <td className={`px-4 py-3 text-right font-bold ${entry.quantityChange > 0 ? 'text-green-600' : (entry.quantityChange < 0 ? 'text-red-500' : 'text-slate-400')}`}>
                                             {entry.quantityChange > 0 ? '+' : ''}{formatIndianNumber(entry.quantityChange)}
                                         </td>
-                                        <td className="p-3 text-right font-bold">{formatIndianNumber(entry.balanceAfter)}</td>
-                                        <td className="p-3 text-contentSecondary italic">{entry.notes}</td>
+                                        <td className="px-4 py-3 text-right font-medium text-slate-700">{formatIndianNumber(entry.balanceAfter)}</td>
+                                        <td className="px-4 py-3 text-slate-400 italic text-xs">{entry.notes}</td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
-                        {loading && <p className="text-center p-4">Loading ledger...</p>}
-                        {!loading && sortedLedger.length === 0 && <p className="text-center p-8 text-contentSecondary">No ledger entries found for the selected filters.</p>}
+                        {loading && <div className="flex justify-center p-12"><Loader text="Loading ledger..." /></div>}
+                        {!loading && sortedLedger.length === 0 && <p className="text-center p-12 text-slate-400">No ledger entries found for the selected filters.</p>}
                     </div>
                 </Card>
             )}

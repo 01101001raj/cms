@@ -122,12 +122,13 @@ class Distributor(BaseModel):
     gstin: str
     billing_address: str = Field(serialization_alias="billingAddress", validation_alias="billing_address")
     has_special_schemes: bool = Field(serialization_alias="hasSpecialSchemes", validation_alias="has_special_schemes")
-    asm_name: str = Field(serialization_alias="asmName", validation_alias="asm_name")
-    executive_name: str = Field(serialization_alias="executiveName", validation_alias="executive_name")
+    asm_name: Optional[str] = Field(None, serialization_alias="asmName", validation_alias="asm_name")
+    executive_name: Optional[str] = Field(None, serialization_alias="executiveName", validation_alias="executive_name")
     wallet_balance: float = Field(serialization_alias="walletBalance", validation_alias="wallet_balance")
     date_added: str = Field(serialization_alias="dateAdded", validation_alias="date_added")
     price_tier_id: Optional[str] = Field(None, serialization_alias="priceTierId", validation_alias="price_tier_id")
     store_id: Optional[str] = Field(None, serialization_alias="storeId", validation_alias="store_id")
+    last_order_date: Optional[str] = Field(None, serialization_alias="lastOrderDate", validation_alias="last_order_date")
 
 
 class DistributorCreate(BaseModel):

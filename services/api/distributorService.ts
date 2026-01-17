@@ -27,7 +27,7 @@ export const createDistributorService = (supabase: SupabaseClient) => ({
             walletBalance: s.wallet_balance
         }));
     },
-    
+
     async getStoreById(id: string): Promise<Store | null> {
         const { data, error } = await supabase.from('stores').select('*').eq('id', id).single();
         if (error && error.code !== 'PGRST116') throw error;
@@ -105,6 +105,22 @@ export const createDistributorService = (supabase: SupabaseClient) => ({
             query = query.eq('store_id', portalState.id);
         }
         const { data, error } = await query;
+
+        // Fetch last order date for all distributors
+        const { data: ordersData } = await supabase
+            .from('orders')
+            .select('distributor_id, date')
+            .order('date', { ascending: false });
+
+        const lastOrderMap = new Map();
+        if (ordersData) {
+            ordersData.forEach((order: any) => {
+                if (!lastOrderMap.has(order.distributor_id)) {
+                    lastOrderMap.set(order.distributor_id, order.date);
+                }
+            });
+        }
+
         const distributors = handleResponse({ data, error });
         return (distributors || []).map((d: any) => ({
             id: d.id,
@@ -122,7 +138,8 @@ export const createDistributorService = (supabase: SupabaseClient) => ({
             walletBalance: d.wallet_balance,
             dateAdded: d.date_added,
             priceTierId: d.price_tier_id,
-            storeId: d.store_id
+            storeId: d.store_id,
+            lastOrderDate: lastOrderMap.get(d.id)
         }));
     },
 
@@ -130,6 +147,16 @@ export const createDistributorService = (supabase: SupabaseClient) => ({
         const { data, error } = await supabase.from('distributors').select('*').eq('id', id).single();
         if (error && error.code !== 'PGRST116') throw error;
         if (!data) return null;
+
+        // Fetch last order
+        const { data: lastOrder } = await supabase
+            .from('orders')
+            .select('date')
+            .eq('distributor_id', id)
+            .order('date', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
         return {
             id: data.id,
             name: data.name,
@@ -146,10 +173,11 @@ export const createDistributorService = (supabase: SupabaseClient) => ({
             walletBalance: data.wallet_balance,
             dateAdded: data.date_added,
             priceTierId: data.price_tier_id,
-            storeId: data.store_id
+            storeId: data.store_id,
+            lastOrderDate: lastOrder?.date
         };
     },
-    
+
     async addDistributor(distributorData: Omit<Distributor, 'id' | 'walletBalance' | 'dateAdded'>, portalState: PortalState | null, initialScheme?: Omit<Scheme, 'id' | 'isGlobal' | 'distributorId' | 'storeId' | 'stoppedBy' | 'stoppedDate'>): Promise<Distributor> {
         console.log('DEBUG addDistributor:', {
             storeId: distributorData.storeId,
@@ -194,7 +222,7 @@ export const createDistributorService = (supabase: SupabaseClient) => ({
                 throw new Error(`Failed to create initial scheme: ${schemeError.message}. Distributor creation has been rolled back.`);
             }
         }
-        
+
         return {
             id: newDistributor.id,
             name: newDistributor.name,
@@ -252,7 +280,7 @@ export const createDistributorService = (supabase: SupabaseClient) => ({
             storeId: result.store_id
         };
     },
-    
+
     async getPriceTiers(): Promise<PriceTier[]> {
         const { data, error } = await supabase.from('price_tiers').select('*');
         return handleResponse({ data, error }) || [];

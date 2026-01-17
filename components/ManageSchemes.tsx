@@ -12,6 +12,7 @@ import { useForm, SubmitHandler } from 'react-hook-form';
 import { useSortableData } from '../hooks/useSortableData';
 import SortableTableHeader from './common/SortableTableHeader';
 import { formatDateTimeDDMMYYYY } from '../utils/formatting';
+import Loader from './common/Loader';
 
 
 type SchemeFormInputs = Omit<Scheme, 'id' | 'stoppedBy' | 'stoppedDate'> & { scope: 'global' | 'distributor' | 'store' };
@@ -391,7 +392,7 @@ const ManageSchemes: React.FC = () => {
     };
 
     if (loading) {
-        return <div className="text-center p-8">Loading schemes...</div>;
+        return <Loader fullScreen text="Loading schemes..." />;
     }
 
     return (
