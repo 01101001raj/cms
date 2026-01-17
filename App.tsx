@@ -1,5 +1,6 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useAuth } from './hooks/useAuth';
@@ -119,6 +120,7 @@ const App: React.FC = () => {
   return (
     <div className="flex flex-col min-h-screen bg-background text-content font-sans">
       <AppRoutes />
+      <Analytics />
     </div>
   );
 };
