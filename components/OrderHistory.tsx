@@ -3,7 +3,7 @@ import Card from './common/Card';
 import Button from './common/Button';
 import { api } from '../services/api';
 import { Order, Distributor, EnrichedOrderItem, OrderStatus, EnrichedStockTransfer, StockTransferStatus, EnrichedStockTransferItem, UserRole, Store } from '../types';
-import { ChevronRight, CheckCircle, XCircle, Search, Download, Trash2, FileText, MoreHorizontal, AlertTriangle, Filter, Truck, CornerUpLeft, FileBox, Edit } from 'lucide-react';
+import { ChevronRight, CheckCircle, XCircle, Search, Download, Trash2, FileText, MoreHorizontal, AlertTriangle, Filter, Truck, CornerUpLeft, FileBox, Edit, Gift } from 'lucide-react';
 import EditOrderModal from './EditOrderModal';
 import ReturnOrderModal from './ReturnOrderModal';
 import DeleteOrderModal from './DeleteOrderModal';
@@ -40,38 +40,49 @@ import { cn } from '@/lib/utils';
 const TransferDetails: React.FC<{ transferId: string }> = React.memo(({ transferId }) => {
     const [items, setItems] = useState<EnrichedStockTransferItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        api.getEnrichedStockTransferItems(transferId).then(data => {
-            setItems(data);
-            setLoading(false);
-        });
+        setLoading(true);
+        api.getEnrichedStockTransferItems(transferId)
+            .then(data => {
+                setItems(data || []);
+                setLoading(false);
+            })
+            .catch(err => {
+                console.error("Failed to load transfer items:", err);
+                setError("Failed to load items.");
+                setLoading(false);
+            });
     }, [transferId]);
 
     if (loading) return <div className="p-4"><Loader text="Loading items..." /></div>;
+    if (error) return <div className="p-4 text-destructive text-sm">{error}</div>;
 
     return (
         <div className="bg-card p-4 rounded-lg border border-border">
-            <h4 className="font-bold mb-2 text-content">Dispatched Items</h4>
+            <h4 className="font-bold mb-2 text-foreground">Dispatched Items</h4>
             <div className="overflow-x-auto">
-                <table className="w-full bg-white rounded-md min-w-[500px] text-sm">
-                    <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-xs border-b">
+                <table className="w-full bg-card rounded-md min-w-[500px] text-sm">
+                    <thead className="bg-muted text-muted-foreground uppercase font-semibold text-xs border-b border-border">
                         <tr className="text-left border-b border-border">
-                            <th className="p-3 font-semibold text-contentSecondary">Product</th>
-                            <th className="p-3 font-semibold text-contentSecondary text-center">Quantity</th>
-                            <th className="p-3 font-semibold text-contentSecondary text-right">Unit Value</th>
-                            <th className="p-3 font-semibold text-contentSecondary text-right">Subtotal</th>
+                            <th className="p-3 font-semibold">Product</th>
+                            <th className="p-3 font-semibold text-center">Quantity</th>
+                            <th className="p-3 font-semibold text-right">Unit Value</th>
+                            <th className="p-3 font-semibold text-right">Subtotal</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {items.map((item) => (
-                            <tr key={item.id} className={`border-b border-border last:border-none ${item.isFreebie ? 'bg-green-50' : ''}`}>
-                                <td className="p-2">{item.skuName} {item.isFreebie && <Gift size={12} className="inline ml-1 text-green-700" />}</td>
-                                <td className="p-2 text-center">{item.quantity}</td>
-                                <td className="p-2 text-right">{!item.isFreebie ? formatIndianCurrency(item.unitPrice) : 'FREE'}</td>
-                                <td className="p-2 font-semibold text-right">{formatIndianCurrency(item.quantity * item.unitPrice)}</td>
+                        {items.length > 0 ? items.map((item) => (
+                            <tr key={item.id} className={`border-b border-border last:border-none ${item.isFreebie ? 'bg-success/10' : ''}`}>
+                                <td className="p-2 text-foreground">{item.skuName} {item.isFreebie && <Gift size={12} className="inline ml-1 text-success" />}</td>
+                                <td className="p-2 text-center text-foreground">{item.quantity}</td>
+                                <td className="p-2 text-right text-foreground">{!item.isFreebie ? formatIndianCurrency(item.unitPrice) : 'FREE'}</td>
+                                <td className="p-2 font-semibold text-right text-foreground">{formatIndianCurrency(item.quantity * item.unitPrice)}</td>
                             </tr>
-                        ))}
+                        )) : (
+                            <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">No items found.</td></tr>
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -84,40 +95,51 @@ const TransferDetails: React.FC<{ transferId: string }> = React.memo(({ transfer
 const OrderDetails: React.FC<{ orderId: string }> = React.memo(({ orderId }) => {
     const [items, setItems] = useState<EnrichedOrderItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        api.getOrderItems(orderId).then(data => {
-            setItems(data);
-            setLoading(false);
-        });
+        setLoading(true);
+        api.getOrderItems(orderId)
+            .then(data => {
+                setItems(data || []);
+                setLoading(false);
+            })
+            .catch(err => {
+                console.error("Failed to load order items:", err);
+                setError(err instanceof Error ? err.message : "Failed to load items.");
+                setLoading(false);
+            });
     }, [orderId]);
 
     if (loading) return <div className="p-4"><Loader text="Loading items..." /></div>
+    if (error) return <div className="p-4 text-destructive text-sm font-medium">Error: {error}</div>;
 
     return (
         <div className="bg-card p-4 rounded-lg border border-border">
-            <h4 className="font-bold mb-2 text-content">Order Items</h4>
+            <h4 className="font-bold mb-2 text-foreground">Order Items</h4>
             <div className="overflow-x-auto">
-                <table className="w-full bg-white rounded-md min-w-[500px] text-sm">
-                    <thead className="bg-slate-50 text-slate-700 uppercase font-semibold text-xs border-b">
+                <table className="w-full bg-card rounded-md min-w-[500px] text-sm">
+                    <thead className="bg-muted text-muted-foreground uppercase font-semibold text-xs border-b border-border">
                         <tr className="text-left border-b border-border">
-                            <th className="p-3 font-semibold text-contentSecondary">Product</th>
-                            <th className="p-3 font-semibold text-contentSecondary text-center">Delivered</th>
-                            <th className="p-3 font-semibold text-contentSecondary text-center">Returned</th>
-                            <th className="p-3 font-semibold text-contentSecondary text-right">Unit Price</th>
-                            <th className="p-3 font-semibold text-contentSecondary text-right">Subtotal</th>
+                            <th className="p-3 font-semibold">Product</th>
+                            <th className="p-3 font-semibold text-center">Delivered</th>
+                            <th className="p-3 font-semibold text-center">Returned</th>
+                            <th className="p-3 font-semibold text-right">Unit Price</th>
+                            <th className="p-3 font-semibold text-right">Subtotal</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {items.map((item) => (
-                            <tr key={item.id} className={`border-b border-border last:border-none ${item.isFreebie ? 'bg-green-50' : ''}`}>
-                                <td className="p-2">{item.skuName} {item.isFreebie && <Gift size={12} className="inline ml-1 text-green-700" />}</td>
-                                <td className="p-2 text-center">{item.quantity}</td>
-                                <td className="p-2 text-center text-red-600">{item.returnedQuantity > 0 ? item.returnedQuantity : '-'}</td>
-                                <td className="p-2 text-right">{formatIndianCurrency(item.unitPrice)}</td>
-                                <td className="p-2 font-semibold text-right">{formatIndianCurrency(item.quantity * item.unitPrice)}</td>
+                        {items.length > 0 ? items.map((item) => (
+                            <tr key={item.id} className={`border-b border-border last:border-none ${item.isFreebie ? 'bg-success/10' : ''}`}>
+                                <td className="p-2 text-foreground">{item.skuName} {item.isFreebie && <Gift size={12} className="inline ml-1 text-success" />}</td>
+                                <td className="p-2 text-center text-foreground">{item.quantity}</td>
+                                <td className="p-2 text-center text-destructive">{item.returnedQuantity > 0 ? item.returnedQuantity : '-'}</td>
+                                <td className="p-2 text-right text-foreground">{formatIndianCurrency(item.unitPrice)}</td>
+                                <td className="p-2 font-semibold text-right text-foreground">{formatIndianCurrency(item.quantity * item.unitPrice)}</td>
                             </tr>
-                        ))}
+                        )) : (
+                            <tr><td colSpan={5} className="p-4 text-center text-muted-foreground">No items found.</td></tr>
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -494,8 +516,8 @@ const OrderHistory: React.FC = () => {
                                 <div className="flex items-center gap-2 bg-primary/10 text-primary px-3 py-1.5 rounded-md animate-in fade-in slide-in-from-top-2">
                                     <span className="text-sm font-bold">{selectedOrderIds.size} selected</span>
                                     <div className="h-4 w-px bg-primary/20 mx-2"></div>
-                                    <Button size="sm" variant="primary" className='h-7 text-xs' onClick={handleBulkDeliver} isLoading={loading}>Bulk Deliver</Button>
-                                    <Button size="sm" variant="danger" className='h-7 text-xs' onClick={handleBulkDelete} disabled>Delete (Disabled)</Button>
+                                    <Button size="sm" variant="default" className='h-7 text-xs' onClick={handleBulkDeliver} isLoading={loading}>Bulk Deliver</Button>
+                                    <Button size="sm" variant="destructive" className='h-7 text-xs' onClick={handleBulkDelete} disabled>Delete (Disabled)</Button>
                                     <Button size="sm" variant="secondary" className='h-7 text-xs' onClick={() => setSelectedOrderIds(new Set())}>Clear</Button>
                                 </div>
                             )}
@@ -628,7 +650,7 @@ const OrderHistory: React.FC = () => {
                                                         </DropdownMenu>
                                                     </td>
                                                 </tr>
-                                                {expandedOrderId === order.id && <tr className="bg-slate-50"><td colSpan={9} className="p-0 border-b border-border"><div className="p-4"><OrderDetails orderId={order.id} /></div></td></tr>}
+                                                {expandedOrderId === order.id && <tr className="bg-muted/30"><td colSpan={9} className="p-0 border-b border-border"><div className="p-4"><OrderDetails orderId={order.id} /></div></td></tr>}
                                             </React.Fragment>
                                         )
                                     })}
@@ -766,7 +788,7 @@ const OrderHistory: React.FC = () => {
                                                     </DropdownMenu>
                                                 </td>
                                             </tr>
-                                            {expandedTransferId === transfer.id && <tr className="bg-slate-50"><td colSpan={7} className="p-0 border-b border-border"><div className="p-4"><TransferDetails transferId={transfer.id} /></div></td></tr>}
+                                            {expandedTransferId === transfer.id && <tr className="bg-muted/30"><td colSpan={7} className="p-0 border-b border-border"><div className="p-4"><TransferDetails transferId={transfer.id} /></div></td></tr>}
                                         </React.Fragment>
                                     ))}
                                 </tbody>
@@ -795,7 +817,7 @@ const OrderHistory: React.FC = () => {
                             </p>
                             <div className="flex justify-end gap-3">
                                 <Button variant="secondary" onClick={() => setDeliveringOrder(null)}>Cancel</Button>
-                                <Button variant="primary" className="bg-green-600 hover:bg-green-700 text-white" onClick={confirmDeliverOrder} isLoading={!!updatingOrderId}>
+                                <Button variant="default" className="bg-green-600 hover:bg-green-700 text-white" onClick={confirmDeliverOrder} isLoading={!!updatingOrderId}>
                                     Confirm Delivery
                                 </Button>
                             </div>

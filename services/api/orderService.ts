@@ -180,7 +180,19 @@ export const createOrderService = (supabase: SupabaseClient) => ({
     async getOrderItems(orderId: string): Promise<EnrichedOrderItem[]> {
         const { data, error } = await supabase.from('order_items').select('*, skus(*)').eq('order_id', orderId);
         const items = handleResponse({ data, error });
-        return (items || []).map((item: any) => ({ id: item.id, orderId: item.order_id, skuId: item.sku_id, quantity: item.quantity, unitPrice: item.unit_price, isFreebie: item.is_freebie, returnedQuantity: item.returned_quantity, skuName: item.skus.name, hsnCode: item.skus.hsn_code, gstPercentage: item.skus.gst_percentage, basePrice: item.skus.price }));
+        return (items || []).map((item: any) => ({
+            id: item.id,
+            orderId: item.order_id,
+            skuId: item.sku_id,
+            quantity: item.quantity,
+            unitPrice: item.unit_price,
+            isFreebie: item.is_freebie,
+            returnedQuantity: item.returned_quantity,
+            skuName: item.skus?.name || 'Unknown Product',
+            hsnCode: item.skus?.hsn_code || '',
+            gstPercentage: item.skus?.gst_percentage || 0,
+            basePrice: item.skus?.price || 0
+        }));
     },
 
     async getAllOrderItems(portalState: PortalState | null, dateRange?: { from?: Date; to?: Date }): Promise<OrderItem[]> {

@@ -2,360 +2,77 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ================================================
-   THEME SYSTEM - CSS Variables
-   ================================================ */
-
-/* Light Theme (Default) */
-:root {
-  --color-primary: #1157a2;
-  --color-primary-hover: #0d4685;
-  --color-primary-light: #e0e7ff;
-  --color-on-primary: #ffffff;
-
-  --color-secondary: #64748b;
-  --color-on-secondary: #f1f5f9;
-
-  --color-background: #f8fafc;
-  --color-card: #ffffff;
-  --color-card-hover: #f8fafc;
-
-  --color-content: #0f172a;
-  --color-content-secondary: #64748b;
-  --color-content-tertiary: #94a3b8;
-
-  --color-border: #e2e8f0;
-  --color-subtle-bg: #f1f5f9;
-
-  --color-success: #10b981;
-  --color-success-bg: #ecfdf5;
-  --color-warning: #f59e0b;
-  --color-warning-bg: #fffbeb;
-  --color-danger: #ef4444;
-  --color-danger-bg: #fef2f2;
-
-  --shadow-color: rgba(0, 0, 0, 0.05);
-}
-
-
-
-/* ================================================
-   BASE STYLES
-   ================================================ */
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-html,
-body,
-#root {
-  height: 100%;
-}
-
-body {
-  font-family: 'Inter', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  line-height: 1.5;
-  background-color: var(--color-background);
-  color: var(--color-content);
-  transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-/* ================================================
-   SCROLLBAR STYLING
-   ================================================ */
-
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 9999px;
-  transition: background 0.2s ease;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-content-tertiary);
-}
-
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 9999px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: var(--color-content-tertiary);
-}
-
-/* ================================================
-   INTERACTIONS
-   ================================================ */
-
-button,
-a {
-  transition-property: all;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 200ms;
-}
-
-input,
-select,
-textarea {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  background-color: var(--color-card);
-  border-color: var(--color-border);
-  color: var(--color-content);
-}
-
-input:focus,
-select:focus,
-textarea:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 4px var(--color-primary-light);
-}
-
-input::placeholder,
-textarea::placeholder {
-  color: var(--color-content-tertiary);
-}
-
-/* ================================================
-   UTILITIES
-   ================================================ */
-
-.glass-panel {
-  background: var(--color-card);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--color-border);
-}
-
-.page-container {
-  max-width: 1400px;
-  margin: 0 auto;
-  width: 100%;
-}
-
-/* Toast animation */
-@keyframes slide-in-right {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-.animate-slide-in-right {
-  animation: slide-in-right 0.3s ease-out;
-}
-
-/* Theme transition */
-* {
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
-}
-
-/* ================================================
-   PRINT STYLES
-   ================================================ */
-
-@media print {
-
-  /* Hide non-essential elements */
-  nav,
-  aside,
-  header,
-  .no-print,
-  button:not(.print-show),
-  .sidebar,
-  .toast-container {
-    display: none !important;
-  }
-
-  /* Reset backgrounds and shadows */
-  body {
-    background: white !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  .bg-background,
-  .bg-card,
-  .bg-white {
-    background: white !important;
-  }
-
-  /* Full width content */
-  main,
-  .main-content {
-    margin: 0 !important;
-    padding: 0 !important;
-    width: 100% !important;
-    max-width: none !important;
-  }
-
-  /* Card styles for print */
-  .card,
-  [class*="rounded-xl"] {
-    box-shadow: none !important;
-    border: 1px solid #ddd !important;
-    page-break-inside: avoid;
-  }
-
-  /* Table optimization */
-  table {
-    width: 100% !important;
-    border-collapse: collapse !important;
-  }
-
-  th,
-  td {
-    border: 1px solid #ccc !important;
-    padding: 8px !important;
-    font-size: 12px !important;
-  }
-
-  th {
-    background: #f5f5f5 !important;
-    font-weight: bold !important;
-  }
-
-  /* Page breaks */
-  .page-break-before {
-    page-break-before: always;
-  }
-
-  .page-break-after {
-    page-break-after: always;
-  }
-
-  .avoid-break {
-    page-break-inside: avoid;
-  }
-
-  /* Invoice specific */
-  .invoice-header {
-    border-bottom: 2px solid #333;
-    padding-bottom: 16px;
-    margin-bottom: 16px;
-  }
-
-  .invoice-total {
-    font-size: 18px !important;
-    font-weight: bold !important;
-    border-top: 2px solid #333;
-    padding-top: 8px;
-  }
-
-  /* Text adjustments */
-  .text-slate-500,
-  .text-slate-600,
-  .text-content-secondary {
-    color: #333 !important;
-  }
-
-  /* Hide interactive elements */
-  input,
-  select,
-  textarea {
-    border: none !important;
-    padding: 0 !important;
-  }
-
-  /* Compact spacing */
-  .space-y-6>*+* {
-    margin-top: 12px !important;
-  }
-
-  .gap-4 {
-    gap: 8px !important;
-  }
-
-  /* Footer for printouts */
-  @page {
-    margin: 1cm;
-    size: A4;
-  }
-}
-
-
-
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 47.4% 11.2%;
+    --background: 210 40% 98%;
+    --foreground: 222.2 84% 4.9%;
+
     --card: 0 0% 100%;
-    --card-foreground: 222.2 47.4% 11.2%;
+    --card-foreground: 222.2 84% 4.9%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 47.4% 11.2%;
-    --primary: 207 85% 35%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 215 20% 65%;
-    --secondary-foreground: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    /* Deep Indigo Primary */
+    --primary: 226 70% 55%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
+
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
-    --success: 160 84% 39%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 98%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 207 85% 35%;
-    --radius: 0.5rem;
-    --chart-1: 207 85% 35%;
-    --chart-2: 160 84% 39%;
-    --chart-3: 38 92% 50%;
-    --chart-4: 0 84% 60%;
-    --chart-5: 215 20% 65%;
+    --ring: 226 70% 55%;
+
+    --radius: 0.75rem;
+
+    --chart-1: 226 70% 55%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
   }
 
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
+
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
+
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
+
+    /* Deep Indigo Primary - Slightly Lighter for Dark Mode */
+    --primary: 226 70% 65%;
     --primary-foreground: 222.2 47.4% 11.2%;
+
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
+
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
+
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
+
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
+
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --chart-1: 220 70% 50%;
+    --ring: 226 70% 65%;
+
+    --chart-1: 226 70% 65%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
@@ -370,5 +87,26 @@ textarea::placeholder {
 
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Glassmorphism Utilities */
+@layer utilities {
+  .glass {
+    @apply bg-white/10 backdrop-blur-md border border-white/20;
+  }
+
+  .glass-dark {
+    @apply bg-black/10 backdrop-blur-md border border-white/10;
+  }
+
+  /* Legacy Compatibility - Do not remove until all components are refactored */
+  .text-content {
+    @apply text-foreground;
+  }
+
+  .text-contentSecondary {
+    @apply text-muted-foreground;
   }
 }

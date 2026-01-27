@@ -24,7 +24,7 @@ export function useSessionTimeout({
     onWarning,
     onExpire,
 }: UseSessionTimeoutOptions = {}) {
-    const { user, logout } = useAuth();
+    const { currentUser: user, logout } = useAuth();
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
     const warningRef = useRef<NodeJS.Timeout | null>(null);
     const lastActivityRef = useRef<number>(Date.now());

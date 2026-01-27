@@ -59,7 +59,7 @@ const rolePermissions: Record<UserRole, string[]> = {
  * Hook to check user permissions
  */
 export function usePermissions() {
-    const { user } = useAuth();
+    const { currentUser: user } = useAuth();
 
     const role = (user?.role || 'user') as UserRole;
     const permissions = rolePermissions[role] || [];
