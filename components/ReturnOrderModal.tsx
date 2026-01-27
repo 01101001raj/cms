@@ -7,6 +7,13 @@ import { useAuth } from '../hooks/useAuth';
 import { Save, XCircle, CornerUpLeft, TrendingDown } from 'lucide-react';
 import Input from './common/Input';
 import { formatIndianCurrency } from '../utils/formatting';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog"
 
 interface ReturnOrderModalProps {
     order: Order;
@@ -63,7 +70,7 @@ const ReturnOrderModal: React.FC<ReturnOrderModalProps> = ({ order, onClose, onS
             setReturnQuantities(prev => ({ ...prev, [skuId]: '' }));
             return;
         }
-        
+
         if (newQuantity > availableToReturn) newQuantity = availableToReturn;
 
         setReturnQuantities(prev => ({ ...prev, [skuId]: newQuantity }));
@@ -102,11 +109,11 @@ const ReturnOrderModal: React.FC<ReturnOrderModalProps> = ({ order, onClose, onS
                 newNetPaidQuantities.set(skuId, (newNetPaidQuantities.get(skuId) || 0) - returnQty);
             }
         });
-        
+
         const orderDate = new Date(order.date).toISOString().split('T')[0];
         const applicableSchemes = allSchemes.filter(s => {
             // FIX: Corrected property access from snake_case to camelCase to match the Scheme type definition.
-            if(s.startDate > orderDate || s.endDate < orderDate || s.stoppedDate) return false;
+            if (s.startDate > orderDate || s.endDate < orderDate || s.stoppedDate) return false;
             return s.isGlobal || (s.storeId === distributor.storeId) || (s.distributorId === distributor.id && distributor.hasSpecialSchemes);
         });
 
@@ -158,7 +165,7 @@ const ReturnOrderModal: React.FC<ReturnOrderModalProps> = ({ order, onClose, onS
 
     const handleProcessReturn = async () => {
         if (!currentUser) return;
-        
+
         const itemsToReturn = Object.entries(returnQuantities)
             .map(([skuId, quantity]) => ({ skuId, quantity: Number(quantity) }))
             .filter(item => item.quantity > 0);
@@ -167,7 +174,7 @@ const ReturnOrderModal: React.FC<ReturnOrderModalProps> = ({ order, onClose, onS
             setError("Please enter a quantity for at least one item to return.");
             return;
         }
-        
+
         if (!remarks.trim()) {
             setError("Remarks are required to submit a return request.");
             return;
@@ -189,118 +196,123 @@ const ReturnOrderModal: React.FC<ReturnOrderModalProps> = ({ order, onClose, onS
             setLoading(false);
         }
     };
-    
+
     const totalItemsToReturn = Object.values(returnQuantities).reduce((sum: number, qty) => sum + Number(qty || 0), 0);
 
+
+
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4" onClick={onClose}>
-            <div className="bg-card rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                <div className="p-4 border-b flex justify-between items-center">
-                    <h2 className="text-xl font-bold">Return Items for Order <span className="font-mono text-sm text-contentSecondary block sm:inline mt-1 sm:mt-0">{order.id}</span></h2>
-                    <button onClick={onClose} className="p-1 rounded-full hover:bg-background"><XCircle /></button>
-                </div>
-                
+        <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0">
+                <DialogHeader className="p-4 border-b">
+                    <DialogTitle className="flex justify-between items-center text-xl font-bold">
+                        <span>Return Items for Order <span className="font-mono text-sm text-contentSecondary">{order.id}</span></span>
+                    </DialogTitle>
+                </DialogHeader>
+
                 {loading ? <div className="p-8 text-center">Loading...</div> : (
-                <div className="p-6 overflow-y-auto flex-grow space-y-6">
-                    <Card>
-                        <h3 className="text-lg font-semibold mb-2">Select Items to Return</h3>
-                        <p className="text-xs text-contentSecondary mb-2">Only paid items can be returned. Freebies may be clawed back if the return invalidates the original scheme offer.</p>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead className="bg-slate-100">
-                                    <tr>
-                                        <th className="p-2 font-semibold text-contentSecondary">Product</th>
-                                        <th className="p-2 font-semibold text-contentSecondary text-center">Delivered</th>
-                                        <th className="p-2 font-semibold text-contentSecondary text-center">Already Returned</th>
-                                        <th className="p-2 font-semibold text-contentSecondary text-center w-40">Return Qty</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {paidItems.map(item => {
-                                        const availableToReturn = item.quantity - item.returnedQuantity;
-                                        return (
-                                            <tr key={item.id} className="border-b last:border-0">
-                                                <td className="p-2 font-medium">{item.skuName}</td>
-                                                <td className="p-2 text-center">{item.quantity}</td>
-                                                <td className="p-2 text-center">{item.returnedQuantity}</td>
-                                                <td className="p-2">
-                                                    <Input 
-                                                        type="number" 
-                                                        className="text-center"
-                                                        placeholder="0"
-                                                        max={availableToReturn}
-                                                        min={0}
-                                                        value={returnQuantities[item.skuId] || ''}
-                                                        onChange={e => handleQuantityChange(item.skuId, e.target.value)}
-                                                        disabled={availableToReturn <= 0}
-                                                    />
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    </Card>
-
-                    <Card>
-                        <h3 className="text-lg font-semibold mb-2">Reason for Return (Required)</h3>
-                        <div>
-                            <textarea
-                                id="remarks"
-                                rows={3}
-                                value={remarks}
-                                onChange={(e) => setRemarks(e.target.value)}
-                                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 transition bg-slate-50 text-sm text-content border-border focus:border-primary focus:bg-white"
-                                placeholder="e.g., Damaged items, wrong product delivered, etc."
-                            />
-                        </div>
-                    </Card>
-
-                    <Card className="bg-blue-50">
-                        <h3 className="font-semibold mb-2 text-content">Return Summary</h3>
-                        <div className="space-y-2 text-sm">
-                            <div className="flex justify-between">
-                                <span>Credit for Returned Items:</span>
-                                <span className="font-medium">{formatIndianCurrency(grossCredit)}</span>
+                    <div className="p-6 overflow-y-auto flex-grow space-y-6">
+                        <Card>
+                            <h3 className="text-lg font-semibold mb-2">Select Items to Return</h3>
+                            <p className="text-xs text-contentSecondary mb-2">Only paid items can be returned. Freebies may be clawed back if the return invalidates the original scheme offer.</p>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-slate-100">
+                                        <tr>
+                                            <th className="p-2 font-semibold text-contentSecondary">Product</th>
+                                            <th className="p-2 font-semibold text-contentSecondary text-center">Delivered</th>
+                                            <th className="p-2 font-semibold text-contentSecondary text-center">Already Returned</th>
+                                            <th className="p-2 font-semibold text-contentSecondary text-center w-40">Return Qty</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {paidItems.map(item => {
+                                            const availableToReturn = item.quantity - item.returnedQuantity;
+                                            return (
+                                                <tr key={item.id} className="border-b last:border-0">
+                                                    <td className="p-2 font-medium">{item.skuName}</td>
+                                                    <td className="p-2 text-center">{item.quantity}</td>
+                                                    <td className="p-2 text-center">{item.returnedQuantity}</td>
+                                                    <td className="p-2">
+                                                        <Input
+                                                            type="number"
+                                                            className="text-center h-8"
+                                                            placeholder="0"
+                                                            max={availableToReturn}
+                                                            min={0}
+                                                            value={returnQuantities[item.skuId] || ''}
+                                                            onChange={e => handleQuantityChange(item.skuId, e.target.value)}
+                                                            disabled={availableToReturn <= 0}
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
                             </div>
+                        </Card>
 
-                            {clawbackValue > 0 && (
-                                <div className="p-3 bg-yellow-100 rounded-lg text-yellow-900 border border-yellow-200">
-                                    <div className="flex justify-between font-semibold">
-                                        <span>Less: Value of Unearned Freebies</span>
-                                        <span>-{formatIndianCurrency(clawbackValue)}</span>
-                                    </div>
-                                    <ul className="text-xs list-disc list-inside mt-1">
-                                        {clawbackItems.map(item => (
-                                            <li key={item.name}>{item.quantity} x {item.name}</li>
-                                        ))}
-                                    </ul>
+                        <Card>
+                            <h3 className="text-lg font-semibold mb-2">Reason for Return (Required)</h3>
+                            <div>
+                                <textarea
+                                    id="remarks"
+                                    rows={3}
+                                    value={remarks}
+                                    onChange={(e) => setRemarks(e.target.value)}
+                                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 transition bg-slate-50 text-sm text-content border-border focus:border-primary focus:bg-white"
+                                    placeholder="e.g., Damaged items, wrong product delivered, etc."
+                                />
+                            </div>
+                        </Card>
+
+                        <Card className="bg-blue-50">
+                            <h3 className="font-semibold mb-2 text-content">Return Summary</h3>
+                            <div className="space-y-2 text-sm">
+                                <div className="flex justify-between">
+                                    <span>Credit for Returned Items:</span>
+                                    <span className="font-medium">{formatIndianCurrency(grossCredit)}</span>
                                 </div>
-                            )}
 
-                            <div className={`flex justify-between border-t pt-2 mt-2 font-bold text-lg text-green-600`}>
-                                <span>Final Credit Amount:</span>
-                                <span className="flex items-center">
-                                    {finalCredit !== 0 && <TrendingDown size={16} className="mr-1"/>}
-                                    {formatIndianCurrency(finalCredit)}
-                                </span>
+                                {clawbackValue > 0 && (
+                                    <div className="p-3 bg-yellow-100 rounded-lg text-yellow-900 border border-yellow-200">
+                                        <div className="flex justify-between font-semibold">
+                                            <span>Less: Value of Unearned Freebies</span>
+                                            <span>-{formatIndianCurrency(clawbackValue)}</span>
+                                        </div>
+                                        <ul className="text-xs list-disc list-inside mt-1">
+                                            {clawbackItems.map(item => (
+                                                <li key={item.name}>{item.quantity} x {item.name}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                <div className={`flex justify-between border-t pt-2 mt-2 font-bold text-lg text-green-600`}>
+                                    <span>Final Credit Amount:</span>
+                                    <span className="flex items-center">
+                                        {finalCredit !== 0 && <TrendingDown size={16} className="mr-1" />}
+                                        {formatIndianCurrency(finalCredit)}
+                                    </span>
+                                </div>
                             </div>
-                        </div>
-                    </Card>
-                </div>
+                        </Card>
+                    </div>
                 )}
-                
+
                 {error && <div className="p-4 text-center text-sm bg-red-100 text-red-800">{error}</div>}
 
-                <div className="p-4 bg-background border-t flex justify-end gap-4">
-                    <Button variant="secondary" onClick={onClose}>Cancel</Button>
-                    <Button onClick={handleProcessReturn} isLoading={loading} disabled={loading || totalItemsToReturn === 0 || !remarks.trim()}>
-                        <CornerUpLeft size={16} className="mr-2"/> Submit Return Request
-                    </Button>
-                </div>
-            </div>
-        </div>
+                <DialogFooter className="p-4 border-t bg-background">
+                    <div className="flex justify-end gap-4 w-full">
+                        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+                        <Button onClick={handleProcessReturn} isLoading={loading} disabled={loading || totalItemsToReturn === 0 || !remarks.trim()}>
+                            <CornerUpLeft size={16} className="mr-2" /> Submit Return Request
+                        </Button>
+                    </div>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 };
 

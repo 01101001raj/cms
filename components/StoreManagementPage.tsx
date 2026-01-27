@@ -12,35 +12,25 @@ import StoreModal from './StoreModal';
 import Loader from './common/Loader';
 import { formatIndianCurrency } from '../utils/formatting';
 
+// ... imports
+import { useStores, useDeleteStore } from '../hooks/queries/useStores';
+
 const StoreManagementPage: React.FC = () => {
     const { currentUser } = useAuth();
     const navigate = useNavigate();
-    const [stores, setStores] = useState<Store[]>([]);
-    const [loading, setLoading] = useState(true);
+
+    // React Query Hooks
+    const { data: storesList, isLoading: loadingStores } = useStores();
+    const deleteStoreMutation = useDeleteStore();
+
+    const stores = storesList || [];
+    const loading = loadingStores;
+
     const [error, setError] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStore, setEditingStore] = useState<Store | null>(null);
 
-    const fetchStores = useCallback(async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const data = await api.getStores();
-            setStores(data);
-        } catch (err) {
-            setError("Failed to fetch stores.");
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        if (currentUser?.role === UserRole.PLANT_ADMIN) {
-            fetchStores();
-        } else {
-            setLoading(false);
-        }
-    }, [fetchStores, currentUser?.role]);
+    // Removed fetchStores, useEffect
 
     const handleAddNew = () => {
         setEditingStore(null);
@@ -56,8 +46,7 @@ const StoreManagementPage: React.FC = () => {
         if (window.confirm(`Are you sure you want to delete "${store.name}"? This cannot be undone.`)) {
             setError(null);
             try {
-                await api.deleteStore(store.id);
-                fetchStores();
+                await deleteStoreMutation.mutateAsync(store.id);
             } catch (err) {
                 setError(err instanceof Error ? err.message : "An unknown error occurred while deleting.");
             }
@@ -67,7 +56,7 @@ const StoreManagementPage: React.FC = () => {
     const handleSave = () => {
         setIsModalOpen(false);
         setEditingStore(null);
-        fetchStores();
+        // fetchStores removed
     };
 
     if (currentUser?.role !== UserRole.PLANT_ADMIN) {

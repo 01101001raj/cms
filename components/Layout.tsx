@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import NotificationDropdown from './common/NotificationDropdown';
 import RefreshPermissions from './RefreshPermissions';
+
 import { menuItems } from '../constants';
 
 const Sidebar: React.FC<{ isOpen: boolean; closeSidebar: () => void; }> = ({ isOpen, closeSidebar }) => {
@@ -134,6 +135,7 @@ const Header: React.FC<{ openSidebar: () => void; }> = ({ openSidebar }) => {
                     )}
                 </div>
                 <div className="flex items-center space-x-4">
+
                     <NotificationDropdown />
                     <div className="relative group pb-2">
                         <button className="flex items-center space-x-2">

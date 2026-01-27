@@ -1,55 +1,48 @@
 import React, { useEffect, useState } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { CompanyDetails } from '../types';
-import { companyService } from '../services/api/companyService';
+import { useCompany, useCreateCompany, useUpdateCompany } from '../hooks/queries/useCompany';
 import Card from './common/Card';
 import Input from './common/Input';
 import Button from './common/Button';
 import Loader from './common/Loader';
 import { CheckCircle, AlertCircle } from 'lucide-react';
 
+
 const SettingsPage: React.FC = () => {
     const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [companyId, setCompanyId] = useState<string | null>(null);
+    const { data: company, isLoading, error } = useCompany();
+    const createCompanyMutation = useCreateCompany();
+    const updateCompanyMutation = useUpdateCompany();
+
+    const loading = isLoading || createCompanyMutation.isPending || updateCompanyMutation.isPending;
 
     const { register, handleSubmit, formState: { errors, isDirty }, reset } = useForm<CompanyDetails>({
         mode: 'onBlur',
     });
 
     useEffect(() => {
-        loadCompanyDetails();
-    }, []);
-
-    const loadCompanyDetails = async () => {
-        setLoading(true);
-        try {
-            const company = await companyService.getPrimaryCompany();
-            if (company) {
-                setCompanyId(company.id);
-                // Map API response to form fields (handling potential mismatch in field names if any)
-                reset({
-                    companyName: company.name,
-                    addressLine1: company.addressLine1,
-                    addressLine2: company.addressLine2,
-                    city: company.city,
-                    state: company.state,
-                    pincode: company.pincode,
-                    email: company.email,
-                    phone: company.phone,
-                    gstin: company.gstin,
-                } as any);
-            }
-        } catch (error) {
-            console.error("Failed to load company details", error);
-            // It's okay if it fails (404), user will create one
-        } finally {
-            setLoading(false);
+        if (company) {
+            reset({
+                companyName: company.name,
+                addressLine1: company.addressLine1,
+                addressLine2: company.addressLine2,
+                city: company.city,
+                state: company.state,
+                pincode: company.pincode,
+                email: company.email,
+                phone: company.phone,
+                gstin: company.gstin,
+                pan: company.pan,
+                bankName: company.bankName,
+                accountNumber: company.accountNumber,
+                ifscCode: company.ifscCode,
+                logoUrl: company.logoUrl,
+            } as any);
         }
-    };
+    }, [company, reset]);
 
     const onSubmit: SubmitHandler<CompanyDetails> = async (data) => {
-        setLoading(true);
         setStatusMessage(null);
         try {
             // Prepare payload matching backend schema
@@ -57,34 +50,31 @@ const SettingsPage: React.FC = () => {
                 name: data.companyName,
                 addressLine1: data.addressLine1,
                 addressLine2: data.addressLine2,
-                city: data.city || 'City', // Fallback if field missing in form
-                state: data.state || 'State', // Fallback
-                pincode: data.pincode || '000000', // Fallback
+                city: data.city || 'City',
+                state: data.state || 'State',
+                pincode: data.pincode || '000000',
                 email: data.email,
                 phone: data.phone,
                 gstin: data.gstin,
-                pan: 'PENDING', // Required by backend schema
-                bankName: '',
-                accountNumber: '',
-                ifscCode: ''
+                pan: data.pan || 'PENDING',
+                bankName: data.bankName || '',
+                accountNumber: data.accountNumber || '',
+                ifscCode: data.ifscCode || '',
+                logoUrl: data.logoUrl || ''
             };
 
-            if (companyId) {
+            if (company) {
                 // Update existing
-                await companyService.updateCompany(companyId, payload);
+                await updateCompanyMutation.mutateAsync({ id: company.id, details: payload });
             } else {
                 // Create new
-                await companyService.createCompany(payload);
+                await createCompanyMutation.mutateAsync(payload);
             }
 
             setStatusMessage({ type: 'success', text: 'Company settings saved to database successfully!' });
-            // Reload to ensure we have the ID and fresh state
-            loadCompanyDetails();
         } catch (error) {
             console.error("Failed to save settings", error);
             setStatusMessage({ type: 'error', text: 'Failed to save settings to database. Please try again.' });
-        } finally {
-            setLoading(false);
         }
     };
 

@@ -3,6 +3,7 @@ from typing import List
 from app.models.schemas import Store, StoreCreate
 from app.core.supabase import get_supabase_client
 from supabase import Client
+from app.services.audit import log_store_created, log_store_updated
 
 router = APIRouter(prefix="/stores", tags=["Stores"])
 
@@ -45,6 +46,15 @@ async def create_store(
         response = supabase.table("stores").insert(data).execute()
         if not response.data:
             raise HTTPException(status_code=400, detail="Failed to create store")
+        
+        # Audit log
+        await log_store_created(
+            store_id=response.data[0]["id"],
+            user_id="system",
+            username="system",
+            store_name=store.name
+        )
+        
         return response.data[0]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -61,6 +71,15 @@ async def update_store(
         response = supabase.table("stores").update(store.model_dump()).eq("id", store_id).execute()
         if not response.data:
             raise HTTPException(status_code=404, detail="Store not found")
+        
+        # Audit log
+        await log_store_updated(
+            store_id=store_id,
+            user_id="system",
+            username="system",
+            store_name=store.name
+        )
+        
         return response.data[0]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

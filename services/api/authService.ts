@@ -12,12 +12,14 @@ const handleResponse = <T,>({ data, error }: { data: T | null; error: any | null
     return data as T;
 };
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+
 export const createAuthService = (supabase: SupabaseClient) => ({
     async login(email: string, pass: string): Promise<User> {
         // FIX: Cast `supabase.auth` to `any` to access `signInWithPassword`.
         const { data: authData, error: authError } = await (supabase.auth as any).signInWithPassword({ email, password: pass });
         if (authError) throw authError;
-        
+
         const { data, error } = await supabase.from('users').select('*').eq('id', authData.user.id).single();
         const user = handleResponse({ data, error });
         return {
@@ -54,79 +56,81 @@ export const createAuthService = (supabase: SupabaseClient) => ({
     },
 
     async addUser(userData: Omit<User, 'id'>, role: UserRole): Promise<User> {
-        // FIX: Cast `supabase.auth` to `any` to access `signUp`.
-        const { data: authData, error: authError } = await (supabase.auth as any).signUp({
-            email: userData.username,
-            password: userData.password!,
+        // Use backend API for user creation (admin privileges)
+        const response = await fetch(`${API_URL}/users`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                username: userData.username,
+                password: userData.password,
+                role: userData.role,
+                storeId: userData.storeId || null,
+                permissions: userData.permissions || [],
+                asmId: userData.asmId || null,
+            }),
         });
-        if (authError) throw authError;
-        if (!authData.user) throw new Error("Failed to create user in auth.");
 
-        const profileData = {
-            username: userData.username,
-            role: userData.role,
-            store_id: userData.storeId || null,
-            permissions: userData.permissions,
-            asm_id: userData.asmId || null,
-        };
-
-        const { data, error } = await supabase
-            .from('users')
-            .update(profileData)
-            .eq('id', authData.user.id)
-            .select()
-            .single();
-            
-        const updatedUser = handleResponse({ data, error });
-        return {
-            id: updatedUser.id,
-            username: updatedUser.username,
-            role: updatedUser.role,
-            storeId: updatedUser.store_id,
-            permissions: updatedUser.permissions,
-            asmId: updatedUser.asm_id,
-        };
-    },
-    
-    async updateUser(userData: User, role: UserRole): Promise<User> {
-        if (userData.password) {
-            // FIX: Cast `supabase.auth` to `any` to access `updateUser`.
-            const { error: authError } = await (supabase.auth as any).updateUser({ password: userData.password });
-            if (authError) throw authError;
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Failed to create user');
         }
 
-        const { data, error } = await supabase.from('users').update({
-            username: userData.username,
-            role: userData.role,
-            store_id: userData.storeId || null,
-            permissions: userData.permissions,
-            asm_id: userData.asmId || null,
-        }).eq('id', userData.id).select().single();
-        
-        const user = handleResponse({ data, error });
+        const user = await response.json();
         return {
             id: user.id,
             username: user.username,
             role: user.role,
-            storeId: user.store_id,
+            storeId: user.storeId,
             permissions: user.permissions,
-            asmId: user.asm_id,
+            asmId: user.asmId,
         };
     },
-    
+
+    async updateUser(userData: User, role: UserRole): Promise<User> {
+        // Use backend API for user updates (admin privileges for password changes)
+        const response = await fetch(`${API_URL}/users/${userData.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                username: userData.username,
+                password: userData.password || undefined, // Only include if set
+                role: userData.role,
+                storeId: userData.storeId || null,
+                permissions: userData.permissions,
+                asmId: userData.asmId || null,
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Failed to update user');
+        }
+
+        const user = await response.json();
+        return {
+            id: user.id,
+            username: user.username,
+            role: user.role,
+            storeId: user.storeId,
+            permissions: user.permissions,
+            asmId: user.asmId,
+        };
+    },
+
     async deleteUser(userId: string, currentUserId: string, role: UserRole): Promise<void> {
-        // Deleting the user from the `auth.users` schema requires admin privileges not available from the client.
-        // This internal implementation removes the user's profile from the public `users` table.
-        // The user's authentication entry in `auth.users` will remain but will be orphaned.
-        const { error } = await supabase
-            .from('users')
-            .delete()
-            .eq('id', userId);
-        
-        if (error) throw error;
+        // Use backend API for proper user deletion (cleans up auth.users too)
+        const response = await fetch(`${API_URL}/users/${userId}`, {
+            method: 'DELETE',
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Failed to delete user');
+        }
     },
 
     async sendPasswordReset(email: string): Promise<void> {
+        // Keep email-based reset as fallback option
         // FIX: Cast `supabase.auth` to `any` to access `resetPasswordForEmail`.
         const { error } = await (supabase.auth as any).resetPasswordForEmail(email, {
             redirectTo: window.location.origin + '/#/update-password',

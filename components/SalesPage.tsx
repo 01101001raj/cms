@@ -3,7 +3,17 @@ import { api } from '../services/api';
 import { Order, Distributor, OrderStatus, OrderItem, SKU, Scheme, User, UserRole } from '../types';
 import Card from './common/Card';
 import Select from './common/Select';
-import { DollarSign, Package, Gift, Download, BarChart, Table, Wallet, ChevronDown, ChevronRight, X, Trophy } from 'lucide-react';
+import DollarSign from 'lucide-react/dist/esm/icons/dollar-sign';
+import Package from 'lucide-react/dist/esm/icons/package';
+import Gift from 'lucide-react/dist/esm/icons/gift';
+import Download from 'lucide-react/dist/esm/icons/download';
+import BarChart from 'lucide-react/dist/esm/icons/bar-chart';
+import Table from 'lucide-react/dist/esm/icons/table';
+import Wallet from 'lucide-react/dist/esm/icons/wallet';
+import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
+import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
+import X from 'lucide-react/dist/esm/icons/x';
+import Trophy from 'lucide-react/dist/esm/icons/trophy';
 import DateRangePicker from './common/DateRangePicker';
 import Button from './common/Button';
 import { formatIndianCurrency, formatIndianNumber, formatDateDDMMYYYY } from '../utils/formatting';
@@ -66,7 +76,7 @@ const SalesPage: React.FC = () => {
         return { from, to };
     };
 
-    const [dateRange, setDateRange] = useState<{ from: Date | null; to: Date | null }>(getInitialDateRange());
+    const [dateRange, setDateRange] = useState<{ from: Date | null; to: Date | null }>(() => getInitialDateRange());
 
     const [selectedDistributorId, setSelectedDistributorId] = useState<string>('all');
     const [selectedAsmName, setSelectedAsmName] = useState<string>('all');
@@ -354,7 +364,6 @@ const SalesPage: React.FC = () => {
 
             const orderItemsForThisOrder = itemsByOrderId.get(order.id) || [];
             const orderQty = orderItemsForThisOrder
-                .filter(item => !item.isFreebie)
                 .reduce((sum, item) => sum + item.quantity, 0);
             existing.quantity += orderQty;
 

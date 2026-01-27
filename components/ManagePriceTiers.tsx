@@ -11,17 +11,22 @@ import { useSortableData } from '../hooks/useSortableData';
 import SortableTableHeader from './common/SortableTableHeader';
 import { formatIndianCurrency } from '../utils/formatting';
 import Loader from './common/Loader';
+import { usePriceTiers, useAddPriceTier, useUpdatePriceTier, useDeletePriceTier } from '../hooks/queries/usePriceTiers';
+import { usePriceTierItems } from '../hooks/queries/usePriceTierItems';
+import { useAllDistributors } from '../hooks/queries/useDistributors';
+import { useProducts } from '../hooks/queries/useProducts';
 
 type TierFormInputs = Omit<PriceTier, 'id'>;
 
 interface EditTierModalProps {
     tier: PriceTier | null;
     skus: SKU[];
+    existingTierItems: PriceTierItem[];
     onClose: () => void;
     onSave: () => void;
 }
 
-const EditTierModal: React.FC<EditTierModalProps> = ({ tier, skus, onClose, onSave }) => {
+const EditTierModal: React.FC<EditTierModalProps> = ({ tier, skus, existingTierItems, onClose, onSave }) => {
     const { userRole } = useAuth();
     const { register, handleSubmit, formState: { errors, isValid } } = useForm<TierFormInputs>({
         mode: 'onBlur',
@@ -31,29 +36,27 @@ const EditTierModal: React.FC<EditTierModalProps> = ({ tier, skus, onClose, onSa
         },
     });
     const [tierPrices, setTierPrices] = useState<Record<string, number | string>>({});
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        const fetchTierItems = async () => {
-            setLoading(true);
-            if (tier) {
-                const tierItemData = await api.getAllPriceTierItems();
-                const initialPrices: Record<string, number> = {};
-                tierItemData
-                    .filter(item => item.tierId === tier.id)
-                    .forEach(item => {
-                        initialPrices[item.skuId] = item.price;
-                    });
-                setTierPrices(initialPrices);
-            }
-            setLoading(false);
-        };
-        fetchTierItems();
-    }, [tier]);
+        if (tier) {
+            const initialPrices: Record<string, number> = {};
+            existingTierItems
+                .filter(item => item.tierId === tier.id)
+                .forEach(item => {
+                    initialPrices[item.skuId] = item.price;
+                });
+            setTierPrices(initialPrices);
+        }
+    }, [tier, existingTierItems]);
 
     const handlePriceChange = (skuId: string, price: string) => {
         setTierPrices(prev => ({ ...prev, [skuId]: price }));
     };
+
+    // ... Inside EditTierModal
+    const addTierMutation = useAddPriceTier();
+    const updateTierMutation = useUpdatePriceTier();
 
     const onFormSubmit: SubmitHandler<TierFormInputs> = async (data) => {
         if (!userRole) return;
@@ -61,9 +64,9 @@ const EditTierModal: React.FC<EditTierModalProps> = ({ tier, skus, onClose, onSa
         try {
             let savedTier: PriceTier;
             if (tier) { // Editing
-                savedTier = await api.updatePriceTier({ ...tier, ...data }, userRole);
+                savedTier = await updateTierMutation.mutateAsync({ tier: { ...tier, ...data }, role: userRole });
             } else { // Creating
-                savedTier = await api.addPriceTier(data, userRole);
+                savedTier = await addTierMutation.mutateAsync({ tier: data, role: userRole });
             }
 
             const priceItemsToSave = Object.entries(tierPrices)
@@ -80,6 +83,7 @@ const EditTierModal: React.FC<EditTierModalProps> = ({ tier, skus, onClose, onSa
             setLoading(false);
         }
     };
+    // ... Logic ends
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4" onClick={onClose}>
@@ -153,42 +157,31 @@ interface PricingDataRow {
 
 const ManagePriceTiers: React.FC = () => {
     const { userRole } = useAuth();
-    const [tiers, setTiers] = useState<PriceTier[]>([]);
-    const [distributors, setDistributors] = useState<Distributor[]>([]);
-    const [skus, setSkus] = useState<SKU[]>([]);
-    const [allTierItems, setAllTierItems] = useState<PriceTierItem[]>([]);
-    const [loading, setLoading] = useState(true);
+
+    // React Query Hooks
+    const { data: tiersData, isLoading: loadingTiers, refetch: refetchTiers } = usePriceTiers();
+    const { data: distributorsData, isLoading: loadingDistributors } = useAllDistributors();
+    const { data: skusData, isLoading: loadingSkus } = useProducts();
+    const { data: tierItemsData, isLoading: loadingTierItems, refetch: refetchTierItems } = usePriceTierItems();
+
+    // Derived state
+    const tiers = tiersData || [];
+    const distributors = distributorsData || [];
+    const skus = useMemo(() => skusData ? [...skusData].sort((a, b) => a.name.localeCompare(b.name)) : [], [skusData]);
+    const allTierItems = tierItemsData || [];
+
+    const [actionLoading, setActionLoading] = useState(false);
     const [editingTier, setEditingTier] = useState<PriceTier | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [showMatrix, setShowMatrix] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
 
+    // Combined loading state
+    const loading = loadingTiers || loadingDistributors || loadingSkus || loadingTierItems;
+
     const { items: sortedTiers, requestSort, sortConfig } = useSortableData(tiers, { key: 'name', direction: 'ascending' });
 
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const [tierData, distData, skuData, tierItemData] = await Promise.all([
-                api.getPriceTiers(),
-                api.getDistributors(null),
-                api.getSKUs(),
-                api.getAllPriceTierItems(),
-            ]);
-            setTiers(tierData);
-            setDistributors(distData);
-            setSkus(skuData.sort((a, b) => a.name.localeCompare(b.name)));
-            setAllTierItems(tierItemData);
-        } catch (error) {
-            console.error("Failed to fetch price tiers", error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchData();
-    }, []);
-
+    // Filtered Distributors
     const filteredDistributors = useMemo(() => {
         return distributors.filter(d =>
             d.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -219,7 +212,7 @@ const ManagePriceTiers: React.FC = () => {
         });
     }, [filteredDistributors, skus, tierPriceMap]);
 
-    // FIX: Explicitly provided the generic type argument to `useSortableData` to ensure proper type inference, preventing errors where an empty array might be inferred as `never[]`.
+    // FIX: Explicitly provided the generic type argument to `useSortableData`
     const { items: sortedPricingData, requestSort: requestPricingSort, sortConfig: pricingSortConfig } = useSortableData<PricingDataRow>(pricingTableData, { key: 'name', direction: 'ascending' });
 
 
@@ -233,15 +226,20 @@ const ManagePriceTiers: React.FC = () => {
         setIsModalOpen(true);
     };
 
+    const deleteTierMutation = useDeletePriceTier();
+
     const handleDelete = async (tier: PriceTier) => {
         if (!userRole) return;
         if (window.confirm(`Are you sure you want to delete the "${tier.name}" price tier? This will also remove it from any distributors it's assigned to.`)) {
             try {
-                await api.deletePriceTier(tier.id, userRole);
-                fetchData();
+                setActionLoading(true);
+                await deleteTierMutation.mutateAsync({ id: tier.id, role: userRole });
+                await refetchTierItems();
             } catch (err) {
                 console.error("Failed to delete price tier", err);
                 alert((err as Error).message);
+            } finally {
+                setActionLoading(false);
             }
         }
     };
@@ -374,10 +372,12 @@ const ManagePriceTiers: React.FC = () => {
                 <EditTierModal
                     tier={editingTier}
                     skus={skus}
+                    existingTierItems={allTierItems}
                     onClose={() => setIsModalOpen(false)}
                     onSave={() => {
                         setIsModalOpen(false);
-                        fetchData();
+                        refetchTiers();
+                        refetchTierItems();
                     }}
                 />
             )}

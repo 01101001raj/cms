@@ -3,13 +3,38 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../services/api';
 import { Distributor, Order, WalletTransaction, Scheme, SKU, UserRole, EnrichedOrderItem, EnrichedWalletTransaction, OrderStatus, PriceTier, User, Store, PriceTierItem, OrderReturn, ReturnStatus, EnrichedOrderReturn } from '../types';
 import Card from './common/Card';
-import { ArrowLeft, User as UserIcon, Wallet, ShoppingCart, Sparkles, PlusCircle, Save, X, Trash2, ChevronDown, ChevronRight, Gift, Edit, CheckCircle, XCircle, FileText, TrendingUp, Briefcase, Layers, CornerUpLeft, UserCheck, Download, Building, History, BarChart2 } from 'lucide-react';
+import ArrowLeft from 'lucide-react/dist/esm/icons/arrow-left';
+import UserIcon from 'lucide-react/dist/esm/icons/user';
+import Wallet from 'lucide-react/dist/esm/icons/wallet';
+import ShoppingCart from 'lucide-react/dist/esm/icons/shopping-cart';
+import Sparkles from 'lucide-react/dist/esm/icons/sparkles';
+import PlusCircle from 'lucide-react/dist/esm/icons/plus-circle';
+import Save from 'lucide-react/dist/esm/icons/save';
+import X from 'lucide-react/dist/esm/icons/x';
+import Trash2 from 'lucide-react/dist/esm/icons/trash-2';
+import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down';
+import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right';
+import Gift from 'lucide-react/dist/esm/icons/gift';
+import Edit from 'lucide-react/dist/esm/icons/edit';
+import CheckCircle from 'lucide-react/dist/esm/icons/check-circle';
+import XCircle from 'lucide-react/dist/esm/icons/x-circle';
+import FileText from 'lucide-react/dist/esm/icons/file-text';
+import TrendingUp from 'lucide-react/dist/esm/icons/trending-up';
+import Briefcase from 'lucide-react/dist/esm/icons/briefcase';
+import Layers from 'lucide-react/dist/esm/icons/layers';
+import CornerUpLeft from 'lucide-react/dist/esm/icons/corner-up-left';
+import UserCheck from 'lucide-react/dist/esm/icons/user-check';
+import Download from 'lucide-react/dist/esm/icons/download';
+import Building from 'lucide-react/dist/esm/icons/building';
+import History from 'lucide-react/dist/esm/icons/history';
+import BarChart2 from 'lucide-react/dist/esm/icons/bar-chart-2';
 import Button from './common/Button';
 import Input from './common/Input';
 import Select from './common/Select';
 import Loader from './common/Loader';
 import DateRangePicker from './common/DateRangePicker';
 import { useAuth } from '../hooks/useAuth';
+import { useDistributorDetails } from '../hooks/queries/useDistributors';
 import EditOrderModal from './EditOrderModal';
 import ReturnOrderModal from './ReturnOrderModal';
 import DeleteOrderModal from './DeleteOrderModal';
@@ -175,8 +200,10 @@ const DistributorDetailsPage: React.FC = () => {
     const location = useLocation();
     const { currentUser, portal } = useAuth();
 
-    // Data state
-    const [distributor, setDistributor] = useState<Distributor | null>(null);
+    // React Query for Distributor Details
+    const { data: distributor, isLoading: loadingDistributor, error: distributorError } = useDistributorDetails(distributorId);
+
+    // Data state for sub-resources
     const [orders, setOrders] = useState<Order[]>([]);
     const [transactions, setTransactions] = useState<EnrichedWalletTransaction[]>([]);
     const [returns, setReturns] = useState<EnrichedOrderReturn[]>([]);
@@ -198,7 +225,7 @@ const DistributorDetailsPage: React.FC = () => {
     const [dateRange, setDateRange] = useState(getInitialDateRange());
 
     // UI state
-    const [loading, setLoading] = useState(true);
+    const [loadingData, setLoadingData] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'orders' | 'wallet' | 'returns' | 'assignments'>(location.state?.initialTab || 'orders');
     const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -215,14 +242,14 @@ const DistributorDetailsPage: React.FC = () => {
     const fetchData = useCallback(async () => {
         if (!distributorId || !portal) {
             setError("No distributor ID provided.");
-            setLoading(false);
+            setLoadingData(false);
             return;
         }
-        setLoading(true);
+        setLoadingData(true);
         setError(null);
         try {
-            const [distData, ordersData, transactionsData, returnsPending, returnsConfirmed, schemesData, skusData, priceTiersData, storesData, allTierItemsData, usersData] = await Promise.all([
-                api.getDistributorById(distributorId),
+            // Fetch only sub-resources here, distributor comes from hook
+            const [ordersData, transactionsData, returnsPending, returnsConfirmed, schemesData, skusData, priceTiersData, storesData, allTierItemsData, usersData] = await Promise.all([
                 api.getOrdersByDistributor(distributorId, dateRange),
                 api.getWalletTransactionsByDistributor(distributorId, dateRange),
                 api.getReturns(ReturnStatus.PENDING, portal),
@@ -235,32 +262,33 @@ const DistributorDetailsPage: React.FC = () => {
                 api.getUsers(null),
             ]);
 
-            if (!distData) {
-                setError("Distributor not found.");
-            } else {
-                setDistributor(distData);
-                setOrders(ordersData);
-                setTransactions(transactionsData);
-                const allReturns = [...returnsPending, ...returnsConfirmed].filter(r => r.distributorId === distData.id);
-                setReturns(allReturns);
-                setSchemes(schemesData);
-                setSkus(skusData);
-                setPriceTiers(priceTiersData);
-                setStores(storesData);
-                setAllTierItems(allTierItemsData);
-                setUsers(usersData);
-            }
+            setOrders(ordersData);
+            setTransactions(transactionsData);
+            const allReturns = [...returnsPending, ...returnsConfirmed].filter(r => r.distributorId === distributorId);
+            setReturns(allReturns);
+            setSchemes(schemesData);
+            setSkus(skusData);
+            setPriceTiers(priceTiersData);
+            setStores(storesData);
+            setAllTierItems(allTierItemsData);
+            setUsers(usersData);
+
         } catch (e) {
-            setError("Failed to fetch distributor details.");
+            setError("Failed to fetch additional data.");
             console.error(e);
         } finally {
-            setLoading(false);
+            setLoadingData(false);
         }
     }, [distributorId, portal, dateRange]);
 
     useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+        if (distributorId) {
+            fetchData();
+        }
+    }, [fetchData, distributorId]);
+
+    // Combined Loading check
+    const loading = loadingDistributor || loadingData;
 
     const { lifetimeSales, salesLast30Days, avgOrderValue } = useMemo(() => {
         const deliveredOrders = orders.filter(o => o.status === OrderStatus.DELIVERED);

@@ -5,6 +5,7 @@ from app.core.supabase import get_supabase_client
 from supabase import Client
 from datetime import datetime
 import re
+from app.services.audit import log_distributor_created, log_distributor_updated, log_distributor_deleted
 
 router = APIRouter(prefix="/distributors", tags=["Distributors"])
 
@@ -135,6 +136,14 @@ async def create_distributor(
         if not response.data:
             raise HTTPException(status_code=400, detail="Failed to create distributor")
 
+        # Audit log
+        await log_distributor_created(
+            distributor_id=response.data[0]["id"],
+            user_id="system",
+            username="system",
+            distributor_name=distributor.name
+        )
+
         return response.data[0]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -159,6 +168,15 @@ async def update_distributor(
         if not response.data:
             raise HTTPException(status_code=404, detail="Distributor not found")
 
+        # Audit log
+        await log_distributor_updated(
+            distributor_id=distributor_id,
+            user_id="system",
+            username="system",
+            distributor_name=distributor.name,
+            changes=data
+        )
+
         return response.data[0]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -173,7 +191,20 @@ async def delete_distributor(
     Delete a distributor
     """
     try:
+        # Get distributor name before deleting
+        dist_info = supabase.table("distributors").select("name").eq("id", distributor_id).execute()
+        dist_name = dist_info.data[0]["name"] if dist_info.data else "unknown"
+        
         response = supabase.table("distributors").delete().eq("id", distributor_id).execute()
+        
+        # Audit log
+        await log_distributor_deleted(
+            distributor_id=distributor_id,
+            user_id="system",
+            username="system",
+            distributor_name=dist_name
+        )
+        
         return {"message": "Distributor deleted successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -1,6 +1,7 @@
 import React, { ReactNode } from 'react';
+import { Card as ShadcnCard } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
-// FIX: Extend React.HTMLAttributes<HTMLDivElement> to allow passing standard div props like onClick.
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
   className?: string;
@@ -9,19 +10,18 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 
 const Card: React.FC<CardProps> = ({ children, className = '', noPadding = false, onClick, ...props }) => {
   return (
-    <div
-      className={`
-            bg-card rounded-xl shadow-card border border-border
-            transition-all duration-300 ease-out
-            ${onClick ? 'cursor-pointer hover:shadow-card-hover hover:-translate-y-1' : ''}
-            ${noPadding ? '' : 'p-6'} 
-            ${className}
-        `}
+    <ShadcnCard
+      className={cn(
+        "transition-all duration-300 ease-out",
+        !noPadding && "p-6",
+        onClick && "cursor-pointer hover:shadow-lg hover:-translate-y-1",
+        className
+      )}
       onClick={onClick}
       {...props}
     >
       {children}
-    </div>
+    </ShadcnCard>
   );
 };
 

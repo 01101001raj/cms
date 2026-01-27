@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { api } from '../services/api';
+import React, { useState, useMemo } from 'react';
 import { Distributor, SKU, PriceTier, PriceTierItem, Scheme, Store } from '../types';
 import Card from './common/Card';
 import Input from './common/Input';
@@ -8,7 +7,13 @@ import { useSortableData } from '../hooks/useSortableData';
 import SortableTableHeader from './common/SortableTableHeader';
 import { useAuth } from '../hooks/useAuth';
 import { formatIndianCurrency } from '../utils/formatting';
-
+import { useAllDistributors } from '../hooks/queries/useDistributors';
+import { useProducts } from '../hooks/queries/useProducts';
+import { usePriceTiers } from '../hooks/queries/usePriceTiers';
+import { usePriceTierItems } from '../hooks/queries/usePriceTierItems';
+import { useSchemes } from '../hooks/queries/useSchemes';
+import { useStores } from '../hooks/queries/useStores';
+import Loader from './common/Loader';
 interface PricingDataRow {
     id: string;
     name: string;
@@ -19,46 +24,31 @@ interface PricingDataRow {
 const SpecialAssignmentsPage = () => {
     const { portal } = useAuth();
     const [activeTab, setActiveTab] = useState('pricing');
-    const [distributors, setDistributors] = useState<Distributor[]>([]);
-    const [skus, setSkus] = useState<SKU[]>([]);
-    const [priceTiers, setPriceTiers] = useState<PriceTier[]>([]);
-    const [allTierItems, setAllTierItems] = useState<PriceTierItem[]>([]);
-    const [distributorSchemes, setDistributorSchemes] = useState<Scheme[]>([]);
-    const [stores, setStores] = useState<Store[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
-    const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            if (!portal) return;
-            setLoading(true);
-            try {
-                const [distData, skuData, tierData, tierItemData, schemeData, storeData] = await Promise.all([
-                    api.getDistributors(portal),
-                    api.getSKUs(),
-                    api.getPriceTiers(),
-                    api.getAllPriceTierItems(),
-                    api.getSchemes(portal),
-                    api.getStores(),
-                ]);
-                setDistributors(distData);
-                setSkus(skuData.sort((a,b) => a.name.localeCompare(b.name)));
-                setPriceTiers(tierData);
-                setAllTierItems(tierItemData);
-                setDistributorSchemes(schemeData.filter(s => !s.isGlobal));
-                setStores(storeData);
-            } catch (error) {
-                console.error("Failed to fetch data for special assignments:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchData();
-    }, [portal]);
-    
+    // React Query Hooks
+    const { data: distributorsData, isLoading: loadingDistributors } = useAllDistributors();
+    const { data: skusData, isLoading: loadingSkus } = useProducts();
+    const { data: tiersData, isLoading: loadingTiers } = usePriceTiers();
+    const { data: tierItemsData, isLoading: loadingTierItems } = usePriceTierItems();
+    const { data: schemesData, isLoading: loadingSchemes } = useSchemes();
+    const { data: storesData, isLoading: loadingStores } = useStores();
+
+    // Derived state
+    const distributors = distributorsData || [];
+    const skus = useMemo(() => skusData ? [...skusData].sort((a, b) => a.name.localeCompare(b.name)) : [], [skusData]);
+    const priceTiers = tiersData || [];
+    const allTierItems = tierItemsData || [];
+    const distributorSchemes = useMemo(() => schemesData ? schemesData.filter(s => !s.isGlobal) : [], [schemesData]);
+    const stores = storesData || [];
+
+    const loading = loadingDistributors || loadingSkus || loadingTiers || loadingTierItems || loadingSchemes || loadingStores;
+
+    // UseEffect removed
+
     const filteredDistributors = useMemo(() => {
-        return distributors.filter(d => 
-            d.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        return distributors.filter(d =>
+            d.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             d.id.toLowerCase().includes(searchTerm.toLowerCase())
         );
     }, [distributors, searchTerm]);
@@ -70,7 +60,7 @@ const SpecialAssignmentsPage = () => {
         });
         return map;
     }, [allTierItems]);
-    
+
     const schemesForDistributor = useMemo(() => {
         const map = new Map<string, Scheme[]>();
         const storeSchemes = distributorSchemes.filter(s => s.storeId);
@@ -107,12 +97,12 @@ const SpecialAssignmentsPage = () => {
             return row;
         });
     }, [filteredDistributors, skus, tierPriceMap]);
-    
+
     // FIX: Explicitly provided the generic type argument to `useSortableData` to ensure proper type inference, preventing errors where an empty array might be inferred as `never[]`.
     const { items: sortedPricingData, requestSort: requestPricingSort, sortConfig: pricingSortConfig } = useSortableData<PricingDataRow>(pricingTableData, { key: 'name', direction: 'ascending' });
 
     if (loading) {
-        return <div className="text-center p-8">Loading pricing matrix...</div>;
+        return <Loader fullScreen text="Loading pricing matrix..." />;
     }
 
     return (
@@ -202,7 +192,7 @@ const SpecialAssignmentsPage = () => {
                     <p className="text-sm text-contentSecondary mb-4">
                         This section lists all distributors with specific Store-level or Distributor-level schemes applied to them.
                     </p>
-                     <div className="space-y-4">
+                    <div className="space-y-4">
                         {filteredDistributors.map(dist => {
                             const schemesForDist = schemesForDistributor.get(dist.id);
                             if (!schemesForDist || schemesForDist.length === 0) return null;
@@ -228,7 +218,7 @@ const SpecialAssignmentsPage = () => {
                             )
                         })}
                         {filteredDistributors.length > 0 && Array.from(schemesForDistributor.keys()).filter(id => filteredDistributors.some(d => d.id === id)).length === 0 && (
-                             <p className="text-center p-6 text-contentSecondary">
+                            <p className="text-center p-6 text-contentSecondary">
                                 No distributors with special schemes found{searchTerm ? ` for "${searchTerm}"` : ''}.
                             </p>
                         )}

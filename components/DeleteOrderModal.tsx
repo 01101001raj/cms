@@ -4,6 +4,13 @@ import { api } from '../services/api';
 import Button from './common/Button';
 import { useAuth } from '../hooks/useAuth';
 import { XCircle, Trash2, AlertTriangle } from 'lucide-react';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog"
 
 interface DeleteOrderModalProps {
     order: Order;
@@ -37,13 +44,15 @@ const DeleteOrderModal: React.FC<DeleteOrderModalProps> = ({ order, onClose, onC
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4" onClick={onClose}>
-            <div className="bg-card rounded-lg shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
-                <div className="p-4 border-b flex justify-between items-center">
-                    <h2 className="text-xl font-bold text-red-600">Delete Order</h2>
-                    <button onClick={onClose} className="p-1 rounded-full hover:bg-background"><XCircle /></button>
-                </div>
-                
+
+        <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent className="max-w-lg p-0 gap-0">
+                <DialogHeader className="p-4 border-b">
+                    <DialogTitle className="flex justify-between items-center text-xl font-bold text-red-600">
+                        Delete Order
+                    </DialogTitle>
+                </DialogHeader>
+
                 <div className="p-6 space-y-4">
                     <p>
                         Are you sure you want to delete order <span className="font-mono font-semibold">{order.id}</span>?
@@ -68,22 +77,24 @@ const DeleteOrderModal: React.FC<DeleteOrderModalProps> = ({ order, onClose, onC
                         />
                     </div>
                 </div>
-                
+
                 {error && <div className="p-4 text-center text-sm bg-red-100 text-red-800">{error}</div>}
 
-                <div className="p-4 bg-background border-t flex justify-end gap-4">
-                    <Button variant="secondary" onClick={onClose}>Cancel</Button>
-                    <Button 
-                        variant="danger" 
-                        onClick={handleConfirmDeletion} 
-                        isLoading={loading} 
-                        disabled={loading || !remarks.trim()}
-                    >
-                        <Trash2 size={16} /> Confirm Deletion
-                    </Button>
-                </div>
-            </div>
-        </div>
+                <DialogFooter className="p-4 border-t bg-background">
+                    <div className="flex justify-end gap-4 w-full">
+                        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+                        <Button
+                            variant="danger"
+                            onClick={handleConfirmDeletion}
+                            isLoading={loading}
+                            disabled={loading || !remarks.trim()}
+                        >
+                            <Trash2 size={16} /> Confirm Deletion
+                        </Button>
+                    </div>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 };
 

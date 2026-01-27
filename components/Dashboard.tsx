@@ -5,7 +5,23 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { Distributor, Order, OrderStatus, EnrichedStockItem, Store, OrderItem, SKU } from '../types';
 import Card from './common/Card';
-import { DollarSign, Search, Users, Package, CheckCircle, Warehouse, Store as StoreIcon, TrendingUp, Calendar, Building, Landmark, AlertCircle, Clock, List, LayoutGrid, BarChart3, ExternalLink } from 'lucide-react';
+import DollarSign from 'lucide-react/dist/esm/icons/dollar-sign';
+import Search from 'lucide-react/dist/esm/icons/search';
+import Users from 'lucide-react/dist/esm/icons/users';
+import Package from 'lucide-react/dist/esm/icons/package';
+import CheckCircle from 'lucide-react/dist/esm/icons/check-circle';
+import Warehouse from 'lucide-react/dist/esm/icons/warehouse';
+import StoreIcon from 'lucide-react/dist/esm/icons/store';
+import TrendingUp from 'lucide-react/dist/esm/icons/trending-up';
+import Calendar from 'lucide-react/dist/esm/icons/calendar';
+import Building from 'lucide-react/dist/esm/icons/building';
+import Landmark from 'lucide-react/dist/esm/icons/landmark';
+import AlertCircle from 'lucide-react/dist/esm/icons/alert-circle';
+import Clock from 'lucide-react/dist/esm/icons/clock';
+import List from 'lucide-react/dist/esm/icons/list';
+import LayoutGrid from 'lucide-react/dist/esm/icons/layout-grid';
+import BarChart3 from 'lucide-react/dist/esm/icons/bar-chart-3';
+import ExternalLink from 'lucide-react/dist/esm/icons/external-link';
 import Input from './common/Input';
 import { formatIndianCurrency, formatIndianNumber, formatDateDDMMYYYY, formatDateTimeDDMMYYYY } from '../utils/formatting';
 import { useSortableData } from '../hooks/useSortableData';
@@ -61,18 +77,18 @@ const Dashboard: React.FC = () => {
                 // Individual pages will load their own data when navigated to
                 if (activeTab === 'overview') {
                     // Load data needed for overview cards including Top Movers
-                    const [distributorData, orderData, orderItemData, skuData] = await Promise.all([
+                    const [distributorData, orderData, orderItemData, skuData, storeData] = await Promise.all([
                         api.getDistributors(portal),
                         api.getOrders(portal),
                         api.getAllOrderItems(portal),
-                        api.getSKUs()
+                        api.getSKUs(),
+                        api.getStores()
                     ]);
                     setDistributors(distributorData);
                     setOrders(orderData);
                     setAllOrderItems(orderItemData);
                     setSkus(skuData);
-                    // Set others to empty to show skeleton has loaded
-                    setStores([]);
+                    setStores(storeData);
                     setPortalStockItems([]);
                 } else if (activeTab === 'distributors') {
                     // Load distributor-specific data
@@ -160,17 +176,41 @@ const Dashboard: React.FC = () => {
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-        return distributors.map(d => {
-            const distOrders = orders
-                .filter(o => o.distributorId === d.id && o.status === OrderStatus.DELIVERED)
-                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        // Optimization: Pre-calculate order stats per distributor to avoid O(D * O) complexity
+        const lastOrderDates = new Map<string, string>();
+        const salesMap = new Map<string, number>();
 
-            const salesLast30Days = distOrders.filter(o => new Date(o.date) >= thirtyDaysAgo).reduce((sum, o) => sum + o.totalAmount, 0);
-            const lastOrderDate = distOrders.length > 0 ? distOrders[0].date : null;
+        // Sort orders once (descending date)
+        const sortedOrders = [...orders].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        for (const order of sortedOrders) {
+            if (order.status !== OrderStatus.DELIVERED) continue;
+
+            // Capture last order date (first one encountered since we sorted desc)
+            if (!lastOrderDates.has(order.distributorId)) {
+                lastOrderDates.set(order.distributorId, order.date);
+            }
+
+            // Sum sales for last 30 days
+            if (new Date(order.date) >= thirtyDaysAgo) {
+                const currentSales = salesMap.get(order.distributorId) || 0;
+                salesMap.set(order.distributorId, currentSales + order.totalAmount);
+            }
+        }
+
+        return distributors.map(d => {
+            const saleAmount = salesMap.get(d.id) || 0;
+            const lastDate = lastOrderDates.get(d.id) || null;
             const assignment = d.storeId ? storeMap.get(d.storeId) || 'Unknown Store' : 'Plant';
             const availableFunds = d.walletBalance + d.creditLimit;
 
-            return { ...d, lastOrderDate, salesLast30Days, assignment, availableFunds };
+            return {
+                ...d,
+                lastOrderDate: lastDate,
+                salesLast30Days: saleAmount,
+                assignment,
+                availableFunds
+            };
         });
     }, [distributors, orders, storeMap]);
 
@@ -183,7 +223,7 @@ const Dashboard: React.FC = () => {
         const inactiveDistributors = distributorSnapshots.filter(d => !d.lastOrderDate || new Date(d.lastOrderDate) < sixtyDaysAgo).sort((a, b) => a.name.localeCompare(b.name));
         const recentOrders = orders.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
 
-        const productVolumes = allOrderItems.filter(item => !item.isFreebie).reduce((acc, item) => {
+        const productVolumes = allOrderItems.reduce((acc, item) => {
             acc.set(item.skuId, (acc.get(item.skuId) || 0) + item.quantity);
             return acc;
         }, new Map<string, number>());
@@ -228,10 +268,10 @@ const Dashboard: React.FC = () => {
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Dashboard</h1>
-                    <p className="text-slate-500 mt-1">Overview for {portal?.name}</p>
+                    <h1 className="text-3xl font-bold text-content tracking-tight">Dashboard</h1>
+                    <p className="text-contentSecondary mt-1">Overview for {portal?.name}</p>
                 </div>
-                <div className="bg-white px-4 py-2 rounded-full shadow-sm border border-slate-100 text-sm text-slate-500 font-medium">
+                <div className="bg-card px-4 py-2 rounded-full shadow-sm border border-border text-sm text-contentSecondary font-medium">
                     {formatDateDDMMYYYY(new Date().toISOString())}
                 </div>
             </div>
@@ -301,8 +341,8 @@ const Dashboard: React.FC = () => {
             </div>
 
             {/* Main Content Area */}
-            <div className="bg-white rounded-xl shadow-soft border border-slate-100 min-h-[500px]">
-                <div className="border-b border-slate-100 px-6">
+            <div className="bg-card rounded-xl shadow-soft border border-border min-h-[500px]">
+                <div className="border-b border-border px-6">
                     <nav className="-mb-px flex space-x-8" aria-label="Tabs">
                         {['overview', 'distributors', 'inventory'].map((tab) => (
                             <button
@@ -312,7 +352,7 @@ const Dashboard: React.FC = () => {
                             py-4 border-b-2 font-medium text-sm transition-all duration-200 capitalize
                             ${activeTab === tab
                                         ? 'border-primary text-primary'
-                                        : 'border-transparent text-slate-400 hover:text-slate-600 hover:border-slate-200'}
+                                        : 'border-transparent text-contentTertiary hover:text-content hover:border-border'}
                         `}
                             >
                                 {tab}
@@ -328,8 +368,8 @@ const Dashboard: React.FC = () => {
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                                     {/* Action Items Column */}
                                     <div className="space-y-6">
-                                        <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                                            <span className="w-2 h-2 rounded-full bg-amber-500"></span> Requires Action
+                                        <h3 className="font-bold text-content flex items-center gap-2">
+                                            <span className="w-2 h-2 rounded-full bg-warning"></span> Requires Action
                                         </h3>
 
                                         {overviewData?.lowFundsDistributors.length === 0 && overviewData?.inactiveDistributors.length === 0 ? (
@@ -339,10 +379,10 @@ const Dashboard: React.FC = () => {
                                         ) : (
                                             <>
                                                 {overviewData?.lowFundsDistributors.slice(0, 3).map(d => (
-                                                    <div key={d.id} className="group flex justify-between items-center p-4 bg-white border border-slate-100 rounded-lg hover:border-red-200 hover:shadow-sm transition-all cursor-pointer" onClick={() => navigate(`/distributors/${d.id}`)}>
+                                                    <div key={d.id} className="group flex justify-between items-center p-4 bg-card border border-border rounded-lg hover:border-danger hover:shadow-sm transition-all cursor-pointer" onClick={() => navigate(`/distributors/${d.id}`)}>
                                                         <div>
-                                                            <p className="font-semibold text-gray-900 group-hover:text-red-700 transition-colors">{d.name}</p>
-                                                            <p className="text-xs text-red-500 font-medium">Low Balance</p>
+                                                            <p className="font-semibold text-content group-hover:text-danger transition-colors">{d.name}</p>
+                                                            <p className="text-xs text-danger font-medium">Low Balance</p>
                                                         </div>
                                                         <span className="font-mono text-sm font-bold text-slate-700">{formatIndianCurrency(d.availableFunds)}</span>
                                                     </div>

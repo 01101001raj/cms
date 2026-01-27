@@ -2,9 +2,11 @@ from fastapi import APIRouter, HTTPException, Depends, Query
 from typing import List, Optional
 from app.models.schemas import Order, OrderCreate, OrderItem, OrderStatus
 from app.core.supabase import get_supabase_client, get_supabase_admin_client
+from app.core.auth import get_current_user_optional, CurrentUser
 from supabase import Client
 from datetime import datetime
 import uuid
+from app.services.audit import log_order_created, log_order_delivered, log_order_deleted
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
@@ -188,6 +190,14 @@ async def create_order(
             "initiated_by": order_data.username
         }).execute()
 
+        # Audit log
+        await log_order_created(
+            order_id=order_id,
+            user_id=order_data.username,
+            username=order_data.username,
+            order_data={"distributor_id": order_data.distributorId, "total_amount": total_amount, "items_count": len(order_items)}
+        )
+
         return order_response.data[0]
 
     except HTTPException:
@@ -342,6 +352,10 @@ async def update_order_status(
         if not response.data:
             raise HTTPException(status_code=404, detail="Order not found")
 
+        # Audit log for delivery
+        if status == OrderStatus.DELIVERED:
+            await log_order_delivered(order_id=order_id, user_id=username, username=username)
+
         return {"message": "Order status updated successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -398,6 +412,9 @@ async def delete_order(
 
         # Delete order
         supabase.table("orders").delete().eq("id", order_id).execute()
+
+        # Audit log
+        await log_order_deleted(order_id=order_id, user_id=username, username=username, remarks=remarks)
 
         return {"message": "Order deleted successfully"}
     except Exception as e:

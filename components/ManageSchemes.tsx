@@ -13,6 +13,10 @@ import { useSortableData } from '../hooks/useSortableData';
 import SortableTableHeader from './common/SortableTableHeader';
 import { formatDateTimeDDMMYYYY } from '../utils/formatting';
 import Loader from './common/Loader';
+import { useSchemes, useStopScheme, useReactivateScheme, useAddScheme, useUpdateScheme } from '../hooks/queries/useSchemes';
+import { useDistributors } from '../hooks/queries/useDistributors';
+import { useStores } from '../hooks/queries/useStores';
+import { useProducts } from '../hooks/queries/useProducts';
 
 
 type SchemeFormInputs = Omit<Scheme, 'id' | 'stoppedBy' | 'stoppedDate'> & { scope: 'global' | 'distributor' | 'store' };
@@ -69,6 +73,9 @@ const SchemeModal: React.FC<{
         return matches;
     }, [bulkInput, distributors]);
 
+    const addSchemeMutation = useAddScheme();
+    const updateSchemeMutation = useUpdateScheme();
+
     const onFormSubmit: SubmitHandler<SchemeFormInputs> = async (data) => {
         if (!userRole) return;
         setLoading(true);
@@ -89,11 +96,14 @@ const SchemeModal: React.FC<{
         try {
             if (scheme) {
                 // UPDATE existing scheme (Single)
-                await api.updateScheme({
-                    ...basePayload,
-                    id: scheme.id,
-                    distributorId: data.scope === 'distributor' ? data.distributorId : undefined
-                }, userRole);
+                await updateSchemeMutation.mutateAsync({
+                    scheme: {
+                        ...basePayload,
+                        id: scheme.id,
+                        distributorId: data.scope === 'distributor' ? data.distributorId : undefined
+                    },
+                    role: userRole
+                });
             } else {
                 // CREATE new scheme(s)
                 if (data.scope === 'distributor' && selectionMode === 'bulk') {
@@ -104,15 +114,21 @@ const SchemeModal: React.FC<{
                     }
                     // Create a scheme for EACH found distributor
                     await Promise.all(bulkDistributors.map(d =>
-                        api.addScheme({ ...basePayload, distributorId: d.id }, userRole)
+                        addSchemeMutation.mutateAsync({
+                            scheme: { ...basePayload, distributorId: d.id },
+                            role: userRole
+                        })
                     ));
                     console.log(`[SUCCESS] Created ${bulkDistributors.length} schemes via bulk mode`);
                 } else {
                     // Single creation
-                    await api.addScheme({
-                        ...basePayload,
-                        distributorId: data.scope === 'distributor' ? data.distributorId : undefined
-                    }, userRole);
+                    await addSchemeMutation.mutateAsync({
+                        scheme: {
+                            ...basePayload,
+                            distributorId: data.scope === 'distributor' ? data.distributorId : undefined
+                        },
+                        role: userRole
+                    });
                 }
             }
             console.log('[SUCCESS] Scheme operation completed');
@@ -272,40 +288,27 @@ const SchemeModal: React.FC<{
 
 const ManageSchemes: React.FC = () => {
     const { currentUser, portal } = useAuth();
-    const [allSchemes, setAllSchemes] = useState<Scheme[]>([]);
-    const [skus, setSkus] = useState<SKU[]>([]);
-    const [distributors, setDistributors] = useState<Distributor[]>([]);
+
+    // React Query Hooks
+    const { data: schemesData, isLoading: loadingSchemes } = useSchemes(portal);
+    const { data: skusData, isLoading: loadingSkus } = useProducts();
+    const { data: distributorsData, isLoading: loadingDistributors } = useDistributors(portal);
+    const { data: storesData, isLoading: loadingStores } = useStores();
+
+    // Mutations
+    const stopSchemeMutation = useStopScheme();
+    const reactivateSchemeMutation = useReactivateScheme();
+
+    const allSchemes = schemesData || [];
+    const skus = skusData || [];
+    const distributors = distributorsData || [];
+    const stores = storesData || [];
+    const loading = loadingSchemes || loadingSkus || loadingDistributors || loadingStores;
+
     const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
     const [reactivatingId, setReactivatingId] = useState<string | null>(null);
-    const [stores, setStores] = useState<Store[]>([]);
-    const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingScheme, setEditingScheme] = useState<Scheme | null>(null);
-
-    const fetchData = useCallback(async () => {
-        if (!portal) return;
-        setLoading(true);
-        try {
-            const [schemesData, skusData, distsData, storesData] = await Promise.all([
-                api.getSchemes(portal),
-                api.getSKUs(),
-                api.getDistributors(portal),
-                api.getStores(),
-            ]);
-            setAllSchemes(schemesData);
-            setSkus(skusData);
-            setDistributors(distsData);
-            setStores(storesData);
-        } catch (error) {
-            console.error("Failed to fetch schemes data:", error);
-        } finally {
-            setLoading(false);
-        }
-    }, [portal]);
-
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
 
     const activeSchemes = useMemo(() => {
         const today = new Date();
@@ -333,8 +336,11 @@ const ManageSchemes: React.FC = () => {
         if (!currentUser) return;
         if (window.confirm(`Are you sure you want to stop the scheme "${scheme.description}"? This cannot be undone.`)) {
             try {
-                await api.stopScheme(scheme.id, currentUser.username, currentUser.role as UserRole);
-                fetchData();
+                await stopSchemeMutation.mutateAsync({
+                    id: scheme.id,
+                    username: currentUser.username,
+                    role: currentUser.role as UserRole
+                });
             } catch (err) {
                 alert((err as Error).message);
             }
@@ -381,8 +387,12 @@ const ManageSchemes: React.FC = () => {
                 const newEndDate = new Date();
                 newEndDate.setDate(newEndDate.getDate() + 30);
 
-                await api.reactivateScheme(scheme.id, newEndDate.toISOString(), currentUser.username, currentUser.role);
-                await fetchData();
+                await reactivateSchemeMutation.mutateAsync({
+                    id: scheme.id,
+                    endDate: newEndDate.toISOString(),
+                    username: currentUser.username,
+                    role: currentUser.role
+                });
             } catch (err) {
                 alert((err as Error).message);
             } finally {
@@ -512,7 +522,7 @@ const ManageSchemes: React.FC = () => {
                 <SchemeModal
                     scheme={editingScheme}
                     onClose={() => setIsModalOpen(false)}
-                    onSave={() => { setIsModalOpen(false); fetchData(); }}
+                    onSave={() => { setIsModalOpen(false); }}
                     skus={skus}
                     distributors={distributors}
                     stores={stores}

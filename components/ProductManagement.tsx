@@ -9,13 +9,20 @@ import { formatIndianCurrency } from '../utils/formatting';
 import { api } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import Loader from './common/Loader';
+import { useProducts } from '../hooks/queries/useProducts';
 
 const ProductManagement: React.FC = () => {
     const { currentUser } = useAuth();
-    const [products, setProducts] = useState<Product[]>([]);
+
+    // React Query Hook
+    const { data: productsData, isLoading: loading, error: queryError, refetch } = useProducts();
+    const products = productsData || [];
+
+    // Local State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-    const [loading, setLoading] = useState(false);
+    // Loading state is now handled by hook, but we might need local loading for actions
+    const [actionLoading, setActionLoading] = useState(false);
     const [activeTab, setActiveTab] = useState<'active' | 'discontinued'>('active');
 
     // Form state
@@ -35,9 +42,7 @@ const ProductManagement: React.FC = () => {
         status: ProductStatus.ACTIVE,
     });
 
-    useEffect(() => {
-        loadProducts();
-    }, []);
+    // Removed manual loadProducts useEffect
 
     // Auto-generate SKU based on product details
     useEffect(() => {
@@ -83,17 +88,8 @@ const ProductManagement: React.FC = () => {
         }
     }, [formData.priceGrossCarton, formData.gstPercentage]);
 
-    const loadProducts = async () => {
-        try {
-            setLoading(true);
-            const data = await api.getSKUs();
-            setProducts(data);
-        } catch (error) {
-            console.error('Failed to load products:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+    // loadProducts function removed
+
 
     const handleOpenModal = (product?: Product) => {
         if (product) {
@@ -130,19 +126,19 @@ const ProductManagement: React.FC = () => {
         if (!currentUser) return;
 
         try {
-            setLoading(true);
+            setActionLoading(true);
             if (editingProduct) {
                 await api.updateSKU(formData as Product, currentUser.role);
             } else {
                 await api.addSKU(formData as Product, currentUser.role);
             }
             handleCloseModal();
-            await loadProducts();
+            await refetch();
         } catch (error) {
             console.error('Failed to save product:', error);
             alert(`Failed to save product: ${error instanceof Error ? error.message : 'Unknown error'}`);
         } finally {
-            setLoading(false);
+            setActionLoading(false);
         }
     };
 
@@ -151,14 +147,14 @@ const ProductManagement: React.FC = () => {
         if (!currentUser) return;
 
         try {
-            setLoading(true);
+            setActionLoading(true);
             await api.deleteSKU(productId, currentUser.role);
-            await loadProducts();
+            await refetch();
         } catch (error) {
             console.error('Failed to delete product:', error);
             alert(`Failed to delete product: ${error instanceof Error ? error.message : 'Unknown error'}`);
         } finally {
-            setLoading(false);
+            setActionLoading(false);
         }
     };
 
@@ -431,8 +427,8 @@ const ProductManagement: React.FC = () => {
                                 <Button type="button" variant="secondary" onClick={handleCloseModal}>
                                     Cancel
                                 </Button>
-                                <Button type="submit" disabled={loading}>
-                                    {loading ? 'Saving...' : editingProduct ? 'Update Product' : 'Create Product'}
+                                <Button type="submit" disabled={actionLoading}>
+                                    {actionLoading ? 'Saving...' : editingProduct ? 'Update Product' : 'Create Product'}
                                 </Button>
                             </div>
                         </form>

@@ -4,6 +4,8 @@ from app.models.schemas import StockItem, StockProduction, StockTransfer, StockT
 from app.core.supabase import get_supabase_client
 from supabase import Client
 from datetime import datetime
+from app.services.audit import log_stock_production, log_transfer_created, log_transfer_delivered
+from app.services.stock_alerts import StockAlertService
 
 router = APIRouter(prefix="/stock", tags=["Stock Management"])
 
@@ -70,6 +72,15 @@ async def add_production(
                 "notes": f"Production added by {production.username}",
                 "initiatedBy": production.username
             }).execute()
+            
+            # Audit log for each item
+            await log_stock_production(
+                sku_id=sku_id,
+                user_id=production.username,
+                username=production.username,
+                quantity=quantity,
+                location="Plant"
+            )
 
         return {"message": "Production added successfully"}
     except Exception as e:
@@ -130,6 +141,19 @@ async def create_stock_transfer(
             stock = supabase.table("stock").select("*").eq("locationId", PLANT_LOCATION_ID).eq("skuId", item["skuId"]).single().execute()
             new_reserved = stock.data["reserved"] + item["quantity"]
             supabase.table("stock").update({"reserved": new_reserved}).eq("locationId", PLANT_LOCATION_ID).eq("skuId", item["skuId"]).execute()
+
+        # Get store name for audit
+        store_info = supabase.table("stores").select("name").eq("id", transfer.storeId).execute()
+        store_name = store_info.data[0]["name"] if store_info.data else "Unknown Store"
+        
+        # Audit log
+        await log_transfer_created(
+            transfer_id=transfer_id,
+            user_id=transfer.username,
+            username=transfer.username,
+            destination=store_name,
+            total_value=total_value
+        )
 
         return transfer_response.data[0]
 
@@ -208,7 +232,45 @@ async def update_transfer_status(
                 "status": status.value,
                 "deliveredDate": datetime.utcnow().isoformat()
             }).eq("id", transfer_id).execute()
+            
+            # Audit log
+            await log_transfer_delivered(
+                transfer_id=transfer_id,
+                user_id=username,
+                username=username
+            )
 
         return {"message": "Transfer status updated successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/alerts/low-stock")
+async def get_low_stock_alerts(
+    location_id: Optional[str] = Query(None),
+    threshold: Optional[int] = Query(None)
+):
+    """
+    Get items with low stock levels
+    """
+    try:
+        items = await StockAlertService.get_low_stock_items(
+            location_id=location_id,
+            threshold=threshold
+        )
+        return {"low_stock_items": items, "count": len(items)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/alerts/summary")
+async def get_stock_alerts_summary():
+    """
+    Get a summary of stock health across all locations
+    """
+    try:
+        summary = await StockAlertService.get_stock_summary()
+        return summary
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

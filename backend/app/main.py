@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from app.core.config import settings
-from app.api.routes import auth, distributors, orders, stock, wallet, products, stores, reports, migrations, companies
+from app.api.routes import auth, distributors, orders, stock, wallet, products, stores, reports, migrations, companies, users, audit, returns
 
 # Create FastAPI app with optimizations
 app = FastAPI(
@@ -11,7 +11,7 @@ app = FastAPI(
     version="1.0.0",
     description="Backend API for Distributor Management System",
     docs_url="/docs",
-    redoc_url=None  # Disable ReDoc to reduce bundle size
+    redoc_url="/redoc"
 )
 
 # Add custom validation error handler
@@ -45,6 +45,9 @@ app.include_router(stores.router, prefix=settings.API_V1_PREFIX)
 app.include_router(companies.router, prefix=settings.API_V1_PREFIX)
 app.include_router(reports.router, prefix=settings.API_V1_PREFIX)
 app.include_router(migrations.router, prefix=settings.API_V1_PREFIX)
+app.include_router(users.router, prefix=settings.API_V1_PREFIX)
+app.include_router(audit.router, prefix=settings.API_V1_PREFIX)
+app.include_router(returns.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/")

@@ -13,6 +13,7 @@ import Input from './common/Input';
 import Select from './common/Select';
 import { assignableMenuItems } from '../constants';
 import Loader from './common/Loader';
+import { useToast } from '../hooks/useToast';
 
 
 const UserModal: React.FC<{ user: User | null, onClose: () => void, onSave: () => void, stores: Store[], allUsers: User[] }> = ({ user, onClose, onSave, stores, allUsers }) => {
@@ -32,20 +33,29 @@ const UserModal: React.FC<{ user: User | null, onClose: () => void, onSave: () =
     const [error, setError] = useState<string | null>(null);
     const asms = allUsers.filter(u => u.role === UserRole.ASM);
 
+    const addUserMutation = useAddUser();
+    const updateUserMutation = useUpdateUser();
+
     const onFormSubmit: SubmitHandler<User> = async (data) => {
         if (!currentUser) return;
         setLoading(true);
         setError(null);
         try {
             if (user) { // Editing
-                await api.updateUser({ ...user, ...data }, currentUser.role);
+                await updateUserMutation.mutateAsync({
+                    user: { ...user, ...data },
+                    role: currentUser.role
+                });
             } else { // Creating
                 if (!data.password) {
                     setError("Password is required for new users.");
                     setLoading(false);
                     return;
                 }
-                await api.addUser(data, currentUser.role);
+                await addUserMutation.mutateAsync({
+                    user: data,
+                    role: currentUser.role
+                });
             }
             onSave();
         } catch (err) {
@@ -167,37 +177,34 @@ const UserModal: React.FC<{ user: User | null, onClose: () => void, onSave: () =
     );
 }
 
+import { useUsers, useAddUser, useUpdateUser, useDeleteUser, useResetPassword } from '../hooks/queries/useUsers';
+import { useStores } from '../hooks/queries/useStores';
+
+// ... (keep UserModal component, will update it separately or below if in range)
+
 const UserManagementPage: React.FC = () => {
     const { currentUser, portal } = useAuth();
-    const [users, setUsers] = useState<User[]>([]);
-    const [stores, setStores] = useState<Store[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { showSuccess, showError } = useToast();
+
+    // React Query Hooks
+    const { data: usersData, isLoading: loadingUsers } = useUsers(portal);
+    const { data: storesData, isLoading: loadingStores } = useStores();
+
+    // Mutations
+    const deleteUserMutation = useDeleteUser();
+    const resetPasswordMutation = useResetPassword();
+
+    const users = usersData || [];
+    const stores = storesData || [];
+    const loading = loadingUsers || loadingStores;
+
     const [error, setError] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [expandedAsms, setExpandedAsms] = useState<Set<string>>(new Set());
 
-    const fetchUsersAndStores = useCallback(async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const [userData, storeData] = await Promise.all([
-                api.getUsers(portal),
-                api.getStores()
-            ]);
-            setUsers(userData);
-            setStores(storeData);
-        } catch (err) {
-            setError("Failed to fetch user data.");
-        } finally {
-            setLoading(false);
-        }
-    }, [portal]);
-
-    useEffect(() => {
-        fetchUsersAndStores();
-    }, [fetchUsersAndStores]);
+    // Removed fetchUsersAndStores and useEffect as they are replaced by hooks
 
     const handleAddNew = () => {
         setEditingUser(null);
@@ -227,10 +234,16 @@ const UserManagementPage: React.FC = () => {
         if (window.confirm(`Are you sure you want to delete user "${user.username}"?`)) {
             setError(null);
             try {
-                await api.deleteUser(user.id, currentUser.id, currentUser.role);
-                fetchUsersAndStores();
+                await deleteUserMutation.mutateAsync({
+                    userId: user.id,
+                    currentUserId: currentUser.id,
+                    role: currentUser.role
+                });
+                showSuccess(`User "${user.username}" deleted successfully.`);
             } catch (err) {
-                setError(err instanceof Error ? err.message : "An unknown error occurred while deleting.");
+                const errorMsg = err instanceof Error ? err.message : "An unknown error occurred while deleting.";
+                setError(errorMsg);
+                showError(errorMsg);
             }
         }
     };
@@ -241,7 +254,7 @@ const UserManagementPage: React.FC = () => {
             return;
         }
         try {
-            await api.sendPasswordReset(user.username);
+            await resetPasswordMutation.mutateAsync(user.username);
             setStatusMessage({ type: 'success', text: `Password reset instructions sent to ${user.username}.` });
             setTimeout(() => setStatusMessage(null), 5000);
         } catch (err) {
@@ -252,7 +265,7 @@ const UserManagementPage: React.FC = () => {
     const handleSave = () => {
         setIsModalOpen(false);
         setEditingUser(null);
-        fetchUsersAndStores();
+        // fetchUsersAndStores is removed, queries invalidate automatically
     };
 
     const getStoreName = (storeId?: string) => {

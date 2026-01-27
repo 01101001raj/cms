@@ -4,17 +4,24 @@ import { api } from '../services/api';
 import Card from './common/Card';
 import Select from './common/Select';
 import Button from './common/Button';
+import AccountSelector from './common/AccountSelector';
 import { useAuth } from '../hooks/useAuth';
-import { CheckCircle, Gift, Star, FileText, AlertTriangle, Sparkles, Send, ShoppingCart, History, Search, Building2, Wallet, CreditCard, User, Phone, MapPin } from 'lucide-react';
+import CheckCircle from 'lucide-react/dist/esm/icons/check-circle';
+import Gift from 'lucide-react/dist/esm/icons/gift';
+import Star from 'lucide-react/dist/esm/icons/star';
+import FileText from 'lucide-react/dist/esm/icons/file-text';
+import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle';
+import Sparkles from 'lucide-react/dist/esm/icons/sparkles';
+import Send from 'lucide-react/dist/esm/icons/send';
+import ShoppingCart from 'lucide-react/dist/esm/icons/shopping-cart';
+import History from 'lucide-react/dist/esm/icons/history';
+import Search from 'lucide-react/dist/esm/icons/search';
+import CreditCard from 'lucide-react/dist/esm/icons/credit-card';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { formatIndianCurrency } from '../utils/formatting';
 import Loader from './common/Loader';
 import Input from './common/Input';
-
-interface ProductQuantity {
-    skuId: string;
-    quantity: number;
-}
+import { useToast } from '../hooks/useToast';
 
 interface DisplayItem {
     skuId: string;
@@ -31,12 +38,6 @@ interface AppliedSchemeInfo {
     timesApplied: number;
 }
 
-interface StatusMessage {
-    type: 'success' | 'error';
-    text: string;
-    recordId?: string;
-}
-
 interface StockInfo {
     quantity: number;
     reserved: number;
@@ -44,6 +45,7 @@ interface StockInfo {
 
 const PlaceOrder: React.FC = () => {
     const { currentUser, portal } = useAuth();
+    const { showSuccess, showError } = useToast();
     const location = useLocation();
     const navigate = useNavigate();
 
@@ -56,12 +58,10 @@ const PlaceOrder: React.FC = () => {
     const [allTierItems, setAllTierItems] = useState<PriceTierItem[]>([]);
     const [sourceStock, setSourceStock] = useState<Map<string, StockInfo>>(new Map());
 
-    const [agentCodeInput, setAgentCodeInput] = useState<string>('');
     const [selectedDistributorId, setSelectedDistributorId] = useState<string>(location.state?.distributorId || '');
     const [selectedStoreId, setSelectedStoreId] = useState<string>('');
     const [productQuantities, setProductQuantities] = useState<Map<string, number>>(new Map());
     const [isLoading, setIsLoading] = useState(false);
-    const [statusMessage, setStatusMessage] = useState<StatusMessage | null>(null);
     const [searchFilter, setSearchFilter] = useState<string>('');
     const [authorizedBy, setAuthorizedBy] = useState<string>('');
 
@@ -70,25 +70,20 @@ const PlaceOrder: React.FC = () => {
         record: Order | StockTransfer;
         accountName: string;
         total: number;
+        items: DisplayItem[];
+        phone?: string;
     } | null>(null);
 
     const [sourceLocationId, setSourceLocationId] = useState<string | null>(null);
-    const [sourceLocationName, setSourceLocationName] = useState<string>('');
 
     const selectedDistributor = useMemo(() => distributors.find(d => d.id === selectedDistributorId), [distributors, selectedDistributorId]);
+    const skuMap = useMemo(() => new Map(skus.map(s => [s.id, s])), [skus]);
 
     useEffect(() => {
         const loadInitialData = async () => {
             if (!portal) return;
             setIsLoading(true);
-            const [
-                distributorData,
-                skuData,
-                schemesData,
-                priceTierData,
-                tierItemData,
-                storeData,
-            ] = await Promise.all([
+            const [distributorData, skuData, schemesData, priceTierData, tierItemData, storeData] = await Promise.all([
                 api.getDistributors(portal),
                 api.getSKUs(),
                 api.getSchemes(portal),
@@ -96,7 +91,6 @@ const PlaceOrder: React.FC = () => {
                 api.getAllPriceTierItems(),
                 api.getStores(),
             ]);
-
             setDistributors(distributorData);
             setSkus(skuData.filter(sku => sku.status !== ProductStatus.DISCONTINUED));
             setAllSchemes(schemesData);
@@ -113,49 +107,23 @@ const PlaceOrder: React.FC = () => {
         setProductQuantities(new Map());
         setSelectedDistributorId('');
         setSelectedStoreId('');
-        setAgentCodeInput('');
         setSearchFilter('');
-        setStatusMessage(null);
         setAuthorizedBy('');
     };
 
     const handleModeChange = (newMode: 'order' | 'dispatch') => {
         setMode(newMode);
         handleResetForm();
-    }
-
-    const handleAgentCodeSearch = () => {
-        const trimmedCode = agentCodeInput.trim();
-        if (!trimmedCode) return;
-
-        console.log('[Agent Code Search] Searching for:', trimmedCode);
-        console.log('[Agent Code Search] Total distributors:', distributors.length);
-        console.log('[Agent Code Search] First distributor agentCode:', distributors[0]?.agentCode);
-
-        const distributor = distributors.find(d => d.agentCode?.toLowerCase() === trimmedCode.toLowerCase());
-        console.log('[Agent Code Search] Found distributor:', distributor);
-
-        if (distributor) {
-            setSelectedDistributorId(distributor.id);
-            setStatusMessage(null);
-        } else {
-            setStatusMessage({ type: 'error', text: `No distributor found with agent code "${trimmedCode}"` });
-            setSelectedDistributorId('');
-        }
     };
 
     useEffect(() => {
         let locationId: string | null = null;
-        let locationName = '';
         if (mode === 'order' && selectedDistributor) {
             locationId = selectedDistributor.storeId || null;
-            locationName = locationId === null ? 'Plant' : stores.find(s => s.id === locationId)?.name || 'Store';
         } else if (mode === 'dispatch') {
             locationId = null;
-            locationName = 'Plant';
         }
         setSourceLocationId(locationId);
-        setSourceLocationName(locationName);
     }, [selectedDistributor, stores, mode]);
 
     useEffect(() => {
@@ -191,13 +159,13 @@ const PlaceOrder: React.FC = () => {
     }, [skus, searchFilter]);
 
     const { displayItems, subtotal, gstAmount, grandTotal, stockCheck, appliedSchemes, totalValue } = useMemo(() => {
-        const baseResult = { displayItems: [], subtotal: 0, gstAmount: 0, grandTotal: 0, stockCheck: { hasIssues: false, issues: [] }, appliedSchemes: [], totalValue: 0 };
+        const baseResult = { displayItems: [] as DisplayItem[], subtotal: 0, gstAmount: 0, grandTotal: 0, stockCheck: { hasIssues: false, issues: [] as string[] }, appliedSchemes: [] as AppliedSchemeInfo[], totalValue: 0 };
 
         if (mode === 'dispatch') {
             let value = 0;
             const itemsToDisplay: DisplayItem[] = [];
             productQuantities.forEach((quantity, skuId) => {
-                const sku = skus.find(s => s.id === skuId);
+                const sku = skuMap.get(skuId);
                 if (!sku || quantity <= 0) return;
                 value += quantity * sku.price;
                 itemsToDisplay.push({ skuId: sku.id, skuName: sku.name, quantity, unitPrice: sku.price, isFreebie: false, hasTierPrice: false });
@@ -221,28 +189,12 @@ const PlaceOrder: React.FC = () => {
         let currentGstAmount = 0;
         const itemsToDisplay: DisplayItem[] = [];
         const appliedSchemesTracker = new Map<string, AppliedSchemeInfo>();
-        // Use local date for comparison to support schemes starting "today" in the user's timezone
         const now = new Date();
         const today = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-
-        console.log('[SCHEME DEBUG] Total schemes loaded:', allSchemes.length);
-        console.log('[SCHEME DEBUG] Today\'s date:', today);
-        console.log('[SCHEME DEBUG] Selected distributor:', selectedDistributor);
 
         const skuIdSet = new Set(skus.map(s => s.id));
         const applicableSchemes: Scheme[] = [];
         for (const scheme of allSchemes) {
-            console.log('[SCHEME DEBUG] Checking scheme:', scheme.description, {
-                startDate: scheme.startDate,
-                endDate: scheme.endDate,
-                stoppedDate: scheme.stoppedDate,
-                buySkuId: scheme.buySkuId,
-                getSkuId: scheme.getSkuId,
-                isGlobal: scheme.isGlobal,
-                distributorId: scheme.distributorId,
-                storeId: scheme.storeId
-            });
-
             if (
                 scheme.startDate > today ||
                 scheme.endDate < today ||
@@ -251,25 +203,16 @@ const PlaceOrder: React.FC = () => {
                 !scheme.getSkuId ||
                 !skuIdSet.has(scheme.buySkuId) ||
                 !skuIdSet.has(scheme.getSkuId)
-            ) {
-                console.log('[SCHEME DEBUG] Scheme REJECTED - failed basic filters');
-                continue;
-            }
+            ) continue;
 
             const isGlobal = scheme.isGlobal;
             const isForStore = scheme.storeId != null && scheme.storeId === selectedDistributor.storeId;
             const isForDistributor = scheme.distributorId != null && scheme.distributorId === selectedDistributor.id;
 
-            console.log('[SCHEME DEBUG] Scope check:', { isGlobal, isForStore, isForDistributor });
-
             if (isGlobal || isForStore || isForDistributor) {
-                console.log('[SCHEME DEBUG] Scheme ACCEPTED:', scheme.description);
                 applicableSchemes.push(scheme);
-            } else {
-                console.log('[SCHEME DEBUG] Scheme REJECTED - scope mismatch');
             }
         }
-        console.log('[SCHEME DEBUG] Total applicable schemes:', applicableSchemes.length);
         const uniqueApplicableSchemes = Array.from(new Map(applicableSchemes.map(s => [s.id, s])).values());
 
         const tierItemsMap = new Map<string, number>();
@@ -280,11 +223,10 @@ const PlaceOrder: React.FC = () => {
         }
 
         productQuantities.forEach((quantity, skuId) => {
-            const sku = skus.find(s => s.id === skuId);
+            const sku = skuMap.get(skuId);
             if (!sku || quantity <= 0) return;
             const tierPrice = tierItemsMap.get(skuId);
             const unitPrice = tierPrice !== undefined ? tierPrice : sku.price;
-            // Use net price for calculation to avoid applying GST on gross price
             const netPrice = tierPrice !== undefined ? tierPrice / (1 + sku.gstPercentage / 100) : sku.priceNetCarton;
             const itemSubtotal = quantity * netPrice;
             currentSubtotal += itemSubtotal;
@@ -323,11 +265,10 @@ const PlaceOrder: React.FC = () => {
         });
 
         freebies.forEach((data, skuId) => {
-            const sku = skus.find(s => s.id === skuId);
+            const sku = skuMap.get(skuId);
             if (sku) itemsToDisplay.push({ skuId: sku.id, skuName: sku.name, quantity: data.quantity, unitPrice: 0, isFreebie: true, schemeSource: data.source, hasTierPrice: false });
         });
 
-        // Round all amounts to nearest whole number
         const finalSubtotal = Math.round(currentSubtotal);
         const finalGstAmount = Math.round(currentGstAmount);
         const calculatedGrandTotal = finalSubtotal + finalGstAmount;
@@ -339,22 +280,27 @@ const PlaceOrder: React.FC = () => {
         });
         requiredStock.forEach((quantity, skuId) => {
             const stockInfo = sourceStock.get(skuId);
-            const availableStock = stockInfo ? stockInfo.quantity - stockInfo.reserved : 0;
-            if (quantity > availableStock) {
-                const skuName = skus.find(s => s.id === skuId)?.name || skuId;
-                issues.push(`${skuName}: Required ${quantity}, Available ${availableStock}`);
+            const availability = stockInfo ? stockInfo.quantity - stockInfo.reserved : 0;
+            if (quantity > availability) {
+                const skuName = skuMap.get(skuId)?.name || skuId;
+                issues.push(`${skuName}: Need ${quantity}, Have ${availability}`);
             }
         });
-        const calculatedStockCheck = { hasIssues: issues.length > 0, issues };
-        const finalAppliedSchemes = Array.from(appliedSchemesTracker.values());
 
-        return { displayItems: itemsToDisplay.sort((a, b) => a.isFreebie === b.isFreebie ? a.skuName.localeCompare(b.skuName) : a.isFreebie ? 1 : -1), subtotal: finalSubtotal, gstAmount: finalGstAmount, grandTotal: calculatedGrandTotal, stockCheck: calculatedStockCheck, appliedSchemes: finalAppliedSchemes, totalValue: 0 };
+        return {
+            displayItems: itemsToDisplay.sort((a, b) => a.isFreebie === b.isFreebie ? a.skuName.localeCompare(b.skuName) : a.isFreebie ? 1 : -1),
+            subtotal: finalSubtotal,
+            gstAmount: finalGstAmount,
+            grandTotal: calculatedGrandTotal,
+            stockCheck: { hasIssues: issues.length > 0, issues },
+            appliedSchemes: Array.from(appliedSchemesTracker.values()),
+            totalValue: 0
+        };
     }, [productQuantities, skus, allSchemes, allTierItems, selectedDistributor, sourceStock, mode]);
 
     const handleSubmit = async () => {
         if (!currentUser) return;
         setIsLoading(true);
-        setStatusMessage(null);
 
         const itemsToSubmit = Array.from(productQuantities.entries())
             .filter(([_, quantity]) => quantity > 0)
@@ -363,25 +309,21 @@ const PlaceOrder: React.FC = () => {
         if (mode === 'order') {
             if (!selectedDistributor) return;
             try {
-                // Allow negative balance for special concessions/permissions
-                // Just log warning if funds are insufficient but allow the order
-                const availableFunds = selectedDistributor.walletBalance + selectedDistributor.creditLimit;
-                if (grandTotal > availableFunds) {
-                    console.warn(`[NEGATIVE BALANCE] Order total ${grandTotal} exceeds available funds ${availableFunds} for ${selectedDistributor.name}. Allowing order to proceed with management permission.`);
-                }
-
                 const newOrder = await api.placeOrder(selectedDistributorId, itemsToSubmit, currentUser.username, portal, authorizedBy || undefined);
+
+                showSuccess(`Order #${newOrder.id} placed successfully!`);
 
                 setLastSuccessData({
                     type: 'order',
                     record: newOrder,
-                    accountName: selectedDistributor!.name,
-                    total: grandTotal
+                    accountName: selectedDistributor.name,
+                    total: grandTotal,
+                    items: displayItems,
+                    phone: selectedDistributor.phone
                 });
 
                 setProductQuantities(new Map());
                 setSelectedDistributorId('');
-                setAgentCodeInput('');
 
                 const updatedDistributors = await api.getDistributors(portal);
                 setDistributors(updatedDistributors);
@@ -390,21 +332,25 @@ const PlaceOrder: React.FC = () => {
                     setSourceStock(new Map(updatedStockData.map(item => [item.skuId, { quantity: item.quantity, reserved: item.reserved }])));
                 }
             } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
-                setStatusMessage({ type: 'error', text: `Failed to submit: ${errorMessage}` });
+                const errorMessage = error instanceof Error ? error.message : 'Failed to place order';
+                showError(errorMessage);
+                console.error('Order failed:', error);
             } finally {
                 setIsLoading(false);
             }
         } else {
             if (!selectedStoreId) return;
             try {
-                const newTransfer = await api.createStockTransfer(selectedStoreId, itemsToSubmit, currentUser!.username);
+                const newTransfer = await api.createStockTransfer(selectedStoreId, itemsToSubmit, currentUser.username);
+
+                showSuccess(`Dispatch #${newTransfer.id} created successfully!`);
 
                 setLastSuccessData({
                     type: 'dispatch',
                     record: newTransfer,
                     accountName: stores.find(s => s.id === selectedStoreId)?.name || '',
-                    total: totalValue
+                    total: totalValue,
+                    items: displayItems
                 });
 
                 setProductQuantities(new Map());
@@ -413,8 +359,9 @@ const PlaceOrder: React.FC = () => {
                 const stockData = await api.getStock(null);
                 setSourceStock(new Map(stockData.map(item => [item.skuId, { quantity: item.quantity, reserved: item.reserved }])));
             } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
-                setStatusMessage({ type: 'error', text: `Failed to create dispatch: ${errorMessage}` });
+                const errorMessage = error instanceof Error ? error.message : 'Failed to create dispatch';
+                showError(errorMessage);
+                console.error('Dispatch failed:', error);
             } finally {
                 setIsLoading(false);
             }
@@ -429,7 +376,6 @@ const PlaceOrder: React.FC = () => {
         return true;
     }, [selectedDistributor, grandTotal, mode]);
 
-    // Check if wallet balance is insufficient (using credit limit)
     const isUsingCredit = useMemo(() => {
         if (mode === 'dispatch' || !selectedDistributor) return false;
         return grandTotal > selectedDistributor.walletBalance && grandTotal > 0;
@@ -438,251 +384,215 @@ const PlaceOrder: React.FC = () => {
     const canSubmit = useMemo(() => {
         if (isLoading || lastSuccessData) return false;
         if (mode === 'order') {
-            // Require authorization name if using credit limit
             if (isUsingCredit && !authorizedBy.trim()) return false;
-            // Allow orders even if funds are insufficient (negative balance allowed with management approval)
             return selectedDistributorId && productQuantities.size > 0 && grandTotal > 0 && !stockCheck.hasIssues;
         } else {
             return selectedStoreId && productQuantities.size > 0 && totalValue > 0 && !stockCheck.hasIssues;
         }
     }, [mode, selectedDistributorId, selectedStoreId, productQuantities, grandTotal, totalValue, stockCheck, isLoading, lastSuccessData, isUsingCredit, authorizedBy]);
 
-    const SuccessScreen = () => {
-        if (!lastSuccessData) return null;
-        const { type, record, accountName, total } = lastSuccessData;
-
+    // Success Screen
+    if (lastSuccessData) {
+        const { type, record, accountName, total, items, phone } = lastSuccessData;
         const isOrder = type === 'order';
-        const title = isOrder ? "Order Placed Successfully!" : "Dispatch Created Successfully!";
-        const message = isOrder
-            ? `Order #${record.id} for ${accountName} has been created.`
-            : `Dispatch #${record.id} to ${accountName} is now pending delivery.`;
-        const historyLink = '/order-history';
-        const documentLink = isOrder ? `/invoice/${record.id}` : `/dispatch-note/${record.id}`;
 
-        const isDocumentReady = isOrder
-            ? (record as Order).status === 'Delivered'
-            : (record as StockTransfer).status === 'Delivered';
+        // Generate WhatsApp message with full product details
+        const generateWhatsAppMessage = () => {
+            const orderDate = new Date().toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric'
+            });
+
+            // Separate regular items and freebies
+            const regularItems = items.filter(item => !item.isFreebie);
+            const freebieItems = items.filter(item => item.isFreebie);
+
+            // Format items list
+            const itemsList = regularItems.map(item =>
+                `${item.skuName} - ${item.quantity} pcs @ ${formatIndianCurrency(item.unitPrice)}`
+            ).join('\n');
+
+            // Format freebies list
+            const freebiesList = freebieItems.length > 0
+                ? `\n\n*FREEBIES:*\n` + freebieItems.map(item =>
+                    `${item.skuName} - ${item.quantity} pcs (FREE)`
+                ).join('\n')
+                : '';
+
+            const message = isOrder
+                ? `*ORDER CONFIRMATION*
+
+Order ID: ${record.id}
+Date: ${orderDate}
+Distributor: ${accountName}
+
+*ITEMS:*
+${itemsList}${freebiesList}
+
+---
+*Grand Total: ${formatIndianCurrency(total)}*
+
+Thank you for your order!`
+                : `*DISPATCH CONFIRMATION*
+
+Dispatch ID: ${record.id}
+Date: ${orderDate}
+Store: ${accountName}
+
+*ITEMS:*
+${itemsList}${freebiesList}
+
+---
+*Total Value: ${formatIndianCurrency(total)}*
+
+Dispatch created successfully.`;
+
+            return encodeURIComponent(message);
+        };
+
+        const shareOnWhatsApp = () => {
+            const message = generateWhatsAppMessage();
+            // If phone is available, send directly to that number
+            const phoneNumber = phone?.replace(/[^0-9]/g, '') || '';
+            const waUrl = phoneNumber
+                ? `https://wa.me/91${phoneNumber}?text=${message}`
+                : `https://wa.me/?text=${message}`;
+            window.open(waUrl, '_blank');
+        };
 
         return (
-            <Card className="max-w-2xl mx-auto text-center animate-fade-in">
-                <CheckCircle size={64} className="mx-auto text-green-500" />
-                <h2 className="text-2xl font-bold mt-4">{title}</h2>
-                <p className="text-contentSecondary mt-2">{message}</p>
-                <div className="mt-6 bg-slate-50 p-4 rounded-lg border">
-                    <p className="text-sm text-contentSecondary">{isOrder ? 'Grand Total' : 'Total Value'}</p>
-                    <p className="text-3xl font-bold">{formatIndianCurrency(total)}</p>
+            <Card className="max-w-lg mx-auto text-center py-10">
+                <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle size={32} className="text-green-600" />
                 </div>
-                <div className="mt-8 space-y-3 sm:space-y-0 sm:flex sm:flex-wrap sm:justify-center sm:gap-4">
+                <h2 className="text-2xl font-bold text-slate-900 mb-2">
+                    {isOrder ? 'Order Placed!' : 'Dispatch Created!'}
+                </h2>
+                <p className="text-slate-600 mb-6">
+                    {isOrder ? `Order #${record.id} for ${accountName}` : `Dispatch #${record.id} to ${accountName}`}
+                </p>
+                <div className="bg-slate-50 rounded-lg p-4 mb-6">
+                    <p className="text-sm text-slate-500">{isOrder ? 'Grand Total' : 'Total Value'}</p>
+                    <p className="text-3xl font-bold text-slate-900">{formatIndianCurrency(total)}</p>
+                </div>
+
+                {/* WhatsApp Share Button */}
+                <div className="mb-6">
+                    <button
+                        onClick={shareOnWhatsApp}
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-lg transition-colors shadow-md"
+                    >
+                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                        </svg>
+                        Share on WhatsApp
+                    </button>
+                </div>
+
+                <div className="flex flex-wrap justify-center gap-3">
                     <Button onClick={handleResetForm} variant="primary">
-                        Place Another Order
+                        <ShoppingCart size={16} /> New Order
                     </Button>
-                    <Button onClick={() => navigate(historyLink)} variant="secondary">
+                    <Button onClick={() => navigate('/order-history')} variant="secondary">
                         <History size={16} /> View History
                     </Button>
-                    {isDocumentReady &&
-                        <Button onClick={() => navigate(documentLink)} variant="secondary">
-                            <FileText size={16} /> View {isOrder ? 'Invoice' : 'Note'}
+                    {(record as Order).status === 'Delivered' && (
+                        <Button onClick={() => navigate(`/invoice/${record.id}`)} variant="secondary">
+                            <FileText size={16} /> Invoice
                         </Button>
-                    }
+                    )}
                 </div>
             </Card>
         );
-    };
-
-    if (lastSuccessData) {
-        return <SuccessScreen />;
     }
 
-    if (isLoading) {
-        return <Loader fullScreen text="Processing order..." />;
+    if (isLoading && distributors.length === 0) {
+        return <Loader fullScreen text="Loading..." />;
     }
 
     const isAccountSelected = !!(selectedDistributorId || selectedStoreId);
+    const itemCount = Array.from(productQuantities.values()).reduce((sum, qty) => sum + qty, 0);
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Main Content - 2/3 */}
             <div className="lg:col-span-2 space-y-6">
-                <Card className="border border-gray-200">
-                    <h2 className="text-lg font-semibold mb-5 text-gray-900">Select Operation & Account</h2>
+                {/* Account Selection */}
+                <Card>
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                            <ShoppingCart size={20} className="text-white" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-slate-900">
+                                {mode === 'order' ? 'Place Order' : 'Create Dispatch'}
+                            </h2>
+                            <p className="text-sm text-slate-500">
+                                {mode === 'order' ? 'Order products for a distributor' : 'Dispatch stock to a store'}
+                            </p>
+                        </div>
+                    </div>
 
+                    {/* Mode Toggle */}
                     {portal?.type === 'plant' && (
-                        <div className="flex gap-2 mb-6 p-1 bg-gray-100 rounded-lg">
-                            <Button
-                                variant={mode === 'order' ? 'primary' : 'secondary'}
+                        <div className="flex gap-1 p-1 bg-slate-100 rounded-lg mb-6">
+                            <button
                                 onClick={() => handleModeChange('order')}
-                                className={`flex-1 h-10 font-medium ${mode === 'order'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-white text-gray-600'
+                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${mode === 'order'
+                                    ? 'bg-white text-slate-900 shadow-sm'
+                                    : 'text-slate-600 hover:text-slate-900'
                                     }`}
                             >
-                                <ShoppingCart size={16} /> Order for Distributor
-                            </Button>
-                            <Button
-                                variant={mode === 'dispatch' ? 'primary' : 'secondary'}
+                                <ShoppingCart size={16} /> Order
+                            </button>
+                            <button
                                 onClick={() => handleModeChange('dispatch')}
-                                className={`flex-1 h-10 font-medium ${mode === 'dispatch'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-white text-gray-600'
+                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-md text-sm font-medium transition-all ${mode === 'dispatch'
+                                    ? 'bg-white text-slate-900 shadow-sm'
+                                    : 'text-slate-600 hover:text-slate-900'
                                     }`}
                             >
-                                <Send size={16} /> Dispatch to Store
-                            </Button>
+                                <Send size={16} /> Dispatch
+                            </button>
                         </div>
                     )}
 
+                    {/* Account Selector */}
                     {mode === 'order' ? (
-                        <div className="space-y-5">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Search by Agent Code</label>
-                                <div className="flex gap-2">
-                                    <div className="flex-1 relative">
-                                        <Input
-                                            type="text"
-                                            value={agentCodeInput}
-                                            onChange={(e) => setAgentCodeInput(e.target.value)}
-                                            placeholder="Enter agent code"
-                                            onKeyDown={(e) => e.key === 'Enter' && handleAgentCodeSearch()}
-                                            className="pl-9 h-10"
-                                        />
-                                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                    </div>
-                                    <Button onClick={handleAgentCodeSearch} variant="primary" className="h-10 px-5 bg-blue-600 text-white">
-                                        <Search size={16} /> Search
-                                    </Button>
-                                </div>
-                            </div>
-
-                            {!selectedDistributorId && (
-                                <>
-                                    <div className="relative">
-                                        <div className="absolute inset-0 flex items-center">
-                                            <div className="w-full border-t border-gray-300"></div>
-                                        </div>
-                                        <div className="relative flex justify-center">
-                                            <span className="bg-card px-4 text-sm font-medium text-contentSecondary">OR</span>
-                                        </div>
-                                    </div>
-
-                                    <Select
-                                        id="distributor"
-                                        label="Select from Dropdown"
-                                        value={selectedDistributorId}
-                                        onChange={(e) => {
-                                            setSelectedDistributorId(e.target.value);
-                                            setAgentCodeInput('');
-                                            setStatusMessage(null);
-                                        }}
-                                        disabled={isLoading}
-                                        className="h-10"
-                                    >
-                                        <option value="">-- Choose Distributor --</option>
-                                        {distributors.map(d => <option key={d.id} value={d.id}>{d.agentCode ? `${d.agentCode} - ${d.name}` : d.name}</option>)}
-                                    </Select>
-                                </>
-                            )}
-
-                            {selectedDistributor && (
-                                <div className="mt-6 p-5 bg-blue-50 border border-blue-200 rounded-lg space-y-4">
-                                    <div className="flex items-center justify-between pb-3 border-b border-blue-200">
-                                        <h3 className="text-base font-semibold text-blue-900 flex items-center gap-2">
-                                            <User size={18} className="text-blue-700" />
-                                            Distributor Details
-                                        </h3>
-                                        <div className="px-2.5 py-1 bg-blue-600 text-white text-xs font-medium rounded">
-                                            Verified
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                                        <div className="flex items-start gap-2.5 bg-white p-3 rounded border border-gray-200">
-                                            <User size={16} className="text-gray-500 mt-0.5 flex-shrink-0" />
-                                            <div className="min-w-0">
-                                                <p className="text-gray-500 text-xs mb-0.5">Name</p>
-                                                <p className="font-semibold text-gray-900">{selectedDistributor.name}</p>
-                                            </div>
-                                        </div>
-                                        {selectedDistributor.agentCode && (
-                                            <div className="flex items-start gap-2.5 bg-white p-3 rounded border border-gray-200">
-                                                <Building2 size={16} className="text-gray-500 mt-0.5 flex-shrink-0" />
-                                                <div className="min-w-0">
-                                                    <p className="text-gray-500 text-xs mb-0.5">Agent Code</p>
-                                                    <p className="font-bold text-blue-700 text-base">{selectedDistributor.agentCode}</p>
-                                                </div>
-                                            </div>
-                                        )}
-                                        <div className="flex items-start gap-2.5 bg-white p-3 rounded border border-gray-200">
-                                            <Phone size={16} className="text-gray-500 mt-0.5 flex-shrink-0" />
-                                            <div className="min-w-0">
-                                                <p className="text-gray-500 text-xs mb-0.5">Phone</p>
-                                                <p className="font-semibold text-gray-900">{selectedDistributor.phone || 'N/A'}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-start gap-2.5 bg-white p-3 rounded border border-gray-200">
-                                            <MapPin size={16} className="text-gray-500 mt-0.5 flex-shrink-0" />
-                                            <div className="min-w-0">
-                                                <p className="text-gray-500 text-xs mb-0.5">Area</p>
-                                                <p className="font-semibold text-gray-900">{selectedDistributor.area || 'N/A'}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-start gap-2.5 bg-white p-3 rounded border border-gray-200">
-                                            <Wallet size={16} className="text-gray-500 mt-0.5 flex-shrink-0" />
-                                            <div className="min-w-0">
-                                                <p className="text-gray-500 text-xs mb-0.5">Wallet Balance</p>
-                                                <p className="font-bold text-green-600">{formatIndianCurrency(selectedDistributor.walletBalance)}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-start gap-2.5 bg-white p-3 rounded border border-gray-200">
-                                            <CreditCard size={16} className="text-gray-500 mt-0.5 flex-shrink-0" />
-                                            <div className="min-w-0">
-                                                <p className="text-gray-500 text-xs mb-0.5">Credit Limit</p>
-                                                <p className="font-bold text-orange-600">{formatIndianCurrency(selectedDistributor.creditLimit)}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-3 border-t border-blue-200 bg-white px-4 py-3 -mx-5 -mb-5 rounded-b-lg">
-                                        <p className="text-xs font-medium text-gray-500 uppercase mb-1">Total Available Funds</p>
-                                        <p className="text-2xl font-bold text-blue-700">
-                                            {formatIndianCurrency(selectedDistributor.walletBalance + selectedDistributor.creditLimit)}
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                        <AccountSelector
+                            accountType="distributor"
+                            distributors={distributors}
+                            stores={stores}
+                            selectedId={selectedDistributorId}
+                            onSelect={setSelectedDistributorId}
+                            disabled={isLoading}
+                        />
                     ) : (
-                        <div className="space-y-5">
-                            <Select
-                                id="store"
-                                label="Select Store"
-                                value={selectedStoreId}
-                                onChange={(e) => setSelectedStoreId(e.target.value)}
-                                disabled={isLoading}
-                                className="h-10"
-                            >
-                                <option value="">-- Choose Store --</option>
-                                {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                            </Select>
-                        </div>
-                    )}
-
-                    {statusMessage && statusMessage.type === 'error' && (
-                        <div className="mt-4 p-3 bg-red-100 text-red-800 rounded-lg flex items-center gap-2">
-                            <AlertTriangle size={18} />
-                            <span className="text-sm">{statusMessage.text}</span>
-                        </div>
+                        <Select
+                            id="store"
+                            label="Select Store"
+                            value={selectedStoreId}
+                            onChange={(e) => setSelectedStoreId(e.target.value)}
+                            disabled={isLoading}
+                        >
+                            <option value="">-- Select Store --</option>
+                            {stores.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </Select>
                     )}
                 </Card>
 
-                <Card className="relative border border-gray-200">
+                {/* Product Grid */}
+                <Card className="relative">
                     {!isAccountSelected && (
-                        <div className="absolute inset-0 bg-white/90 flex items-center justify-center z-10 rounded-lg">
-                            <p className="font-medium text-gray-500">Select an account to add products</p>
+                        <div className="absolute inset-0 bg-white/90 flex items-center justify-center z-10 rounded-xl">
+                            <p className="text-slate-500 font-medium">Select an account to add products</p>
                         </div>
                     )}
 
                     <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-lg font-semibold text-gray-900">Add Products</h2>
-                        <div className="relative w-64">
+                        <h3 className="font-semibold text-slate-900">Products</h3>
+                        <div className="relative w-60">
                             <Input
                                 type="text"
                                 value={searchFilter}
@@ -690,55 +600,49 @@ const PlaceOrder: React.FC = () => {
                                 placeholder="Search products..."
                                 className="pl-9 h-9 text-sm"
                             />
-                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                         </div>
                     </div>
 
-                    <div className="space-y-2.5 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                    <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
                         {filteredSkus.map(sku => {
                             const stockInfo = sourceStock.get(sku.id);
                             const available = stockInfo ? stockInfo.quantity - stockInfo.reserved : 0;
                             const currentQty = productQuantities.get(sku.id) || 0;
-                            const hasLowStock = available < currentQty;
+                            const hasLowStock = currentQty > available;
 
                             return (
-                                <div key={sku.id} className="flex items-start justify-between gap-4 p-3 border border-gray-200 rounded-lg bg-white">
-                                    <div className="flex-1 min-w-0 pt-1">
-                                        <h4 className="font-semibold text-sm text-gray-900 truncate mb-1">{sku.name}</h4>
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="text-xs font-semibold text-green-700">
-                                                {formatIndianCurrency(sku.price)}
-                                            </span>
-                                            <span className="text-xs text-gray-500">
-                                                ({sku.cartonSize} {sku.productType?.toLowerCase() === 'volume' ? 'L' : 'kg'}/carton)
-                                            </span>
-                                            <span className="text-xs text-gray-500">
-                                                HSN: {sku.hsnCode || 'N/A'}
-                                            </span>
-                                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${hasLowStock
-                                                ? 'bg-red-100 text-red-700'
-                                                : available < 50
-                                                    ? 'bg-yellow-100 text-yellow-700'
-                                                    : 'bg-green-100 text-green-700'
+                                <div
+                                    key={sku.id}
+                                    className={`flex items-center gap-4 p-3 border rounded-lg transition-all ${currentQty > 0 ? 'border-blue-200 bg-blue-50/50' : 'border-slate-200 bg-white'
+                                        }`}
+                                >
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-medium text-sm text-slate-900 truncate">{sku.name}</p>
+                                        <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500">
+                                            <span className="font-semibold text-green-700">{formatIndianCurrency(sku.price)}</span>
+                                            <span>•</span>
+                                            <span className={`px-1.5 py-0.5 rounded ${hasLowStock ? 'bg-red-100 text-red-700' :
+                                                available < 50 ? 'bg-amber-100 text-amber-700' :
+                                                    'bg-green-100 text-green-700'
                                                 }`}>
                                                 Stock: {available}
                                             </span>
                                         </div>
                                     </div>
-                                    <div className="flex-shrink-0 flex flex-col items-end gap-1">
+                                    <div className="flex items-center gap-2">
                                         <Input
                                             type="number"
                                             min="0"
                                             value={currentQty || ''}
                                             onChange={(e) => handleQuantityChange(sku.id, e.target.value)}
-                                            placeholder="Qty"
+                                            placeholder="0"
                                             className="w-20 h-9 text-center"
                                         />
                                         {currentQty > 0 && (
-                                            <div className="text-xs font-semibold text-blue-700 text-right">
-                                                <div>{currentQty * sku.cartonSize} {sku.productType?.toLowerCase() === 'volume' ? 'L' : 'kg'}</div>
-                                                <div className="text-gray-600">{formatIndianCurrency(currentQty * sku.price)}</div>
-                                            </div>
+                                            <span className="text-xs font-semibold text-blue-700 w-16 text-right">
+                                                {formatIndianCurrency(currentQty * sku.price)}
+                                            </span>
                                         )}
                                     </div>
                                 </div>
@@ -747,121 +651,133 @@ const PlaceOrder: React.FC = () => {
                     </div>
 
                     {filteredSkus.length === 0 && (
-                        <div className="text-center py-8 text-contentSecondary">
+                        <div className="text-center py-10 text-slate-400">
                             <p>No products found</p>
                         </div>
                     )}
                 </Card>
             </div>
 
+            {/* Order Summary - 1/3 */}
             <div className="lg:col-span-1">
-                <div className="sticky top-6 space-y-6">
-                    <Card className="border border-gray-200">
-                        <h3 className="text-lg font-semibold mb-4 text-gray-900">Order Summary</h3>
+                <div className="sticky top-6">
+                    <Card>
+                        <h3 className="font-semibold text-slate-900 mb-4">Order Summary</h3>
 
                         {displayItems.length === 0 ? (
-                            <div className="text-center text-gray-400 py-10 border border-dashed border-gray-300 rounded-lg bg-gray-50">
-                                <ShoppingCart size={36} className="mx-auto mb-2 text-gray-300" />
-                                <p className="text-sm">Add products to see summary</p>
+                            <div className="text-center py-10 border border-dashed border-slate-300 rounded-lg bg-slate-50">
+                                <ShoppingCart size={32} className="mx-auto text-slate-300 mb-2" />
+                                <p className="text-sm text-slate-400">Add products to see summary</p>
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                {mode === 'order' && selectedDistributor && (
-                                    <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
-                                        <div className="flex justify-between items-center text-sm">
-                                            <span className="font-medium text-gray-700">Available Funds:</span>
-                                            <span className="font-bold text-blue-700">{formatIndianCurrency(selectedDistributor.walletBalance + selectedDistributor.creditLimit)}</span>
+                                {/* Items List */}
+                                <div className="space-y-1.5 max-h-48 overflow-y-auto border border-slate-200 rounded-lg p-2 bg-slate-50">
+                                    {displayItems.map((item, idx) => (
+                                        <div key={`${item.skuId}-${idx}`} className={`flex justify-between items-center text-xs p-2 rounded ${item.isFreebie ? 'bg-green-50 border border-green-200' : 'bg-white border border-slate-100'
+                                            }`}>
+                                            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                                {item.isFreebie && <Gift size={12} className="text-green-600 shrink-0" />}
+                                                {item.hasTierPrice && !item.isFreebie && <Star size={12} className="text-amber-500 shrink-0" />}
+                                                <span className="truncate">{item.skuName}</span>
+                                                <span className="text-slate-400 shrink-0">×{item.quantity}</span>
+                                            </div>
+                                            <span className={`font-semibold shrink-0 ml-2 ${item.isFreebie ? 'text-green-600' : ''}`}>
+                                                {item.isFreebie ? 'FREE' : formatIndianCurrency(item.quantity * item.unitPrice)}
+                                            </span>
                                         </div>
-                                        {!fundsCheck && (
-                                            <div className="text-xs text-orange-700 font-semibold text-center mt-2 bg-orange-50 rounded py-1.5 border border-orange-200">
-                                                ⚠️ Order will result in negative balance (management approval required)
-                                            </div>
-                                        )}
-                                        {isUsingCredit && (
-                                            <div className="mt-3 p-3 bg-amber-50 border border-amber-300 rounded-lg">
-                                                <label className="block text-xs font-semibold text-amber-800 mb-2">
-                                                    <CreditCard size={14} className="inline mr-1" />
-                                                    Credit Authorization Required
-                                                </label>
-                                                <p className="text-xs text-amber-700 mb-2">
-                                                    Wallet balance insufficient. Using ₹{Math.max(0, grandTotal - selectedDistributor.walletBalance).toLocaleString('en-IN')} from credit limit.
-                                                </p>
-                                                <Input
-                                                    type="text"
-                                                    value={authorizedBy}
-                                                    onChange={(e) => setAuthorizedBy(e.target.value)}
-                                                    placeholder="Enter authorizing person's name"
-                                                    className="h-9 text-sm"
-                                                />
-                                                {!authorizedBy.trim() && (
-                                                    <p className="text-xs text-red-600 mt-1">* Name required to proceed</p>
-                                                )}
-                                            </div>
-                                        )}
+                                    ))}
+                                </div>
+
+                                {/* Schemes Applied */}
+                                {appliedSchemes.length > 0 && (
+                                    <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                                        <p className="text-xs font-semibold text-green-800 flex items-center gap-1 mb-1">
+                                            <Sparkles size={12} /> Offers Applied
+                                        </p>
+                                        {appliedSchemes.map(({ scheme }) => (
+                                            <p key={scheme.id} className="text-xs text-green-700">{scheme.description}</p>
+                                        ))}
                                     </div>
                                 )}
 
-                                <div>
-                                    <h4 className="font-semibold text-sm text-gray-700 mb-2">Items</h4>
-                                    <div className="space-y-1.5 max-h-56 overflow-y-auto pr-2 border border-gray-200 rounded-lg p-2.5 bg-gray-50 custom-scrollbar">
-                                        {displayItems.map((item, index) => (
-                                            <div key={`${item.skuId}-${index}`} className={`flex justify-between items-start text-sm p-2 rounded ${item.isFreebie ? 'bg-green-50 border border-green-200' : 'bg-white border border-gray-200'}`}>
-                                                <div className="flex items-start gap-1.5 flex-1 min-w-0">
-                                                    {item.isFreebie && <span title="Freebie"><Gift size={14} className="text-green-600 mt-0.5 flex-shrink-0" /></span>}
-                                                    {item.hasTierPrice && !item.isFreebie && <span title="Special Price"><Star size={14} className="text-yellow-500 mt-0.5 flex-shrink-0" /></span>}
-                                                    <div className="flex-1 min-w-0">
-                                                        <span title={item.skuName} className="font-medium block truncate text-xs">{item.skuName}</span>
-                                                        <span className="text-xs text-gray-500">Qty: {item.quantity}</span>
-                                                    </div>
-                                                </div>
-                                                <span className="font-semibold whitespace-nowrap pl-2 text-xs">
-                                                    {item.isFreebie ? <span className="text-green-700 bg-green-100 px-1.5 py-0.5 rounded">FREE</span> : <span className="text-gray-900">{formatIndianCurrency(item.quantity * item.unitPrice)}</span>}
-                                                </span>
-                                            </div>
+                                {/* Stock Alerts */}
+                                {stockCheck.hasIssues && (
+                                    <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                                        <p className="text-xs font-semibold text-amber-800 flex items-center gap-1 mb-1">
+                                            <AlertTriangle size={12} /> Stock Issues
+                                        </p>
+                                        {stockCheck.issues.map((issue, i) => (
+                                            <p key={i} className="text-xs text-amber-700">{issue}</p>
                                         ))}
                                     </div>
-                                </div>
+                                )}
 
-                                <div className="space-y-2 text-sm border-t border-gray-200 pt-3">
+                                {/* Credit Authorization */}
+                                {isUsingCredit && mode === 'order' && (
+                                    <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                                        <p className="text-xs font-semibold text-amber-800 flex items-center gap-1 mb-2">
+                                            <CreditCard size={12} /> Credit Authorization Required
+                                        </p>
+                                        <Input
+                                            type="text"
+                                            value={authorizedBy}
+                                            onChange={(e) => setAuthorizedBy(e.target.value)}
+                                            placeholder="Authorizing person's name"
+                                            className="h-8 text-xs"
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Totals */}
+                                <div className="space-y-2 pt-3 border-t border-slate-200 text-sm">
                                     {mode === 'order' ? (
                                         <>
-                                            <div className="flex justify-between"><span className="text-gray-600">Subtotal</span> <span className="font-semibold">{formatIndianCurrency(subtotal)}</span></div>
-                                            <div className="flex justify-between"><span className="text-gray-600">GST (est.)</span> <span className="font-semibold">{formatIndianCurrency(gstAmount)}</span></div>
-                                            <div className="flex justify-between font-bold text-base border-t border-gray-200 pt-2 mt-2">
-                                                <span>Grand Total</span>
+                                            <div className="flex justify-between text-slate-600">
+                                                <span>Subtotal</span>
+                                                <span>{formatIndianCurrency(subtotal)}</span>
+                                            </div>
+                                            <div className="flex justify-between text-slate-600">
+                                                <span>GST</span>
+                                                <span>{formatIndianCurrency(gstAmount)}</span>
+                                            </div>
+                                            <div className="flex justify-between font-bold text-lg pt-2 border-t border-slate-200">
+                                                <span>Total</span>
                                                 <span className="text-blue-700">{formatIndianCurrency(grandTotal)}</span>
                                             </div>
                                         </>
                                     ) : (
-                                        <div className="flex justify-between font-bold text-base"><span>Total Value</span> <span className="text-blue-700">{formatIndianCurrency(totalValue)}</span></div>
+                                        <div className="flex justify-between font-bold text-lg">
+                                            <span>Total Value</span>
+                                            <span className="text-blue-700">{formatIndianCurrency(totalValue)}</span>
+                                        </div>
                                     )}
                                 </div>
-
-                                {stockCheck.hasIssues && (
-                                    <div className="p-3 rounded-lg bg-yellow-50 border border-yellow-300 flex items-start text-sm">
-                                        <AlertTriangle size={18} className="mr-2 mt-0.5 flex-shrink-0 text-yellow-600" />
-                                        <div>
-                                            <h4 className="font-semibold text-yellow-900 text-xs">Stock Alert</h4>
-                                            <ul className="list-disc list-inside text-xs text-yellow-800 mt-1">
-                                                {stockCheck.issues.map((issue, i) => <li key={i}>{issue}</li>)}
-                                            </ul>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {mode === 'order' && appliedSchemes.length > 0 && (
-                                    <div className="p-3 bg-green-50 rounded-lg border border-green-300">
-                                        <h4 className="font-semibold text-green-900 text-xs flex items-center gap-1.5"><Sparkles size={14} className="text-green-600" /> Promotions Applied</h4>
-                                        <ul className="list-disc list-inside text-xs text-green-800 mt-1 pl-3">
-                                            {appliedSchemes.map(({ scheme }) => <li key={scheme.id}>{scheme.description}</li>)}
-                                        </ul>
-                                    </div>
-                                )}
                             </div>
                         )}
-                        <Button onClick={handleSubmit} isLoading={isLoading} disabled={!canSubmit} className="w-full mt-5 h-10 text-sm font-semibold bg-blue-600 text-white">
-                            {mode === 'order' ? <><ShoppingCart size={16} /> Place Order</> : <><Send size={16} /> Create Dispatch</>}
+
+                        <Button
+                            onClick={handleSubmit}
+                            isLoading={isLoading}
+                            disabled={!canSubmit}
+                            className="w-full mt-5 h-11"
+                        >
+                            {mode === 'order' ? (
+                                <><ShoppingCart size={16} /> Place Order ({itemCount} items)</>
+                            ) : (
+                                <><Send size={16} /> Create Dispatch</>
+                            )}
                         </Button>
+
+                        {!canSubmit && !isLoading && !lastSuccessData && (
+                            <div className="mt-3 text-xs text-center text-red-500 font-medium bg-red-50 p-2 rounded border border-red-100">
+                                {mode === 'order' && !selectedDistributorId && <p>• Select a distributor</p>}
+                                {mode === 'dispatch' && !selectedStoreId && <p>• Select a store</p>}
+                                {productQuantities.size === 0 && <p>• Add at least one product</p>}
+                                {stockCheck.hasIssues && <p>• Fix stock availability issues</p>}
+                                {mode === 'order' && isUsingCredit && !authorizedBy.trim() && <p>• Enter authorization name for credit</p>}
+                            </div>
+                        )}
                     </Card>
                 </div>
             </div>

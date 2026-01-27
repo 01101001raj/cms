@@ -4,6 +4,7 @@ from app.models.schemas import WalletTransaction, WalletRecharge, JournalVoucher
 from app.core.supabase import get_supabase_client, get_supabase_admin_client
 from supabase import Client
 from datetime import datetime
+from app.services.audit import log_wallet_recharge
 
 router = APIRouter(prefix="/wallet", tags=["Wallet Management"])
 
@@ -97,6 +98,15 @@ async def recharge_wallet(
 
             # Update the distributor's current wallet balance
             supabase.table("distributors").update({"wallet_balance": running_balance}).eq("id", recharge.distributorId).execute()
+            
+            # Audit log
+            await log_wallet_recharge(
+                distributor_id=recharge.distributorId,
+                user_id=recharge.username,
+                username=recharge.username,
+                amount=recharge.amount,
+                new_balance=running_balance
+            )
 
         elif recharge.storeId:
             # Recharge store wallet
@@ -140,6 +150,15 @@ async def recharge_wallet(
 
             # Update the store's current wallet balance
             supabase.table("stores").update({"wallet_balance": running_balance}).eq("id", recharge.storeId).execute()
+            
+            # Audit log
+            await log_wallet_recharge(
+                distributor_id=recharge.storeId,
+                user_id=recharge.username,
+                username=recharge.username,
+                amount=recharge.amount,
+                new_balance=running_balance
+            )
 
         return {"message": "Wallet recharged successfully"}
     except Exception as e:

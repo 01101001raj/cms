@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect, useMemo, useCall
 import { User, UserRole, PortalState } from '../types';
 import { supabase } from '../services/supabaseClient';
 import { menuItems } from '../constants';
+import { safeStorage } from '../utils/storage';
 
 interface AuthContextType {
     currentUser: User | null;
@@ -34,16 +35,16 @@ interface CachedUserData {
     portal: PortalState | null;
 }
 
-// Get cached user data from localStorage
+// Get cached user data from safeStorage
 const getCachedUser = (): CachedUserData | null => {
     try {
-        const cached = localStorage.getItem(USER_CACHE_KEY);
+        const cached = safeStorage.getItem(USER_CACHE_KEY);
         if (!cached) return null;
         const data = JSON.parse(cached);
         // Validate version
         if (data.version !== CACHE_VERSION) {
             console.log('[Auth] Cache version mismatch, clearing');
-            localStorage.removeItem(USER_CACHE_KEY);
+            safeStorage.removeItem(USER_CACHE_KEY);
             return null;
         }
         return data;
@@ -53,7 +54,7 @@ const getCachedUser = (): CachedUserData | null => {
     }
 };
 
-// Save user data to localStorage cache
+// Save user data to safeStorage cache
 const setCachedUser = (user: User, portal: PortalState | null) => {
     try {
         const data: CachedUserData = {
@@ -61,17 +62,17 @@ const setCachedUser = (user: User, portal: PortalState | null) => {
             user,
             portal
         };
-        localStorage.setItem(USER_CACHE_KEY, JSON.stringify(data));
+        safeStorage.setItem(USER_CACHE_KEY, JSON.stringify(data));
     } catch (e) {
         console.error('[Auth] Failed to cache user data:', e);
     }
 };
 
-// Clear user cache from localStorage
+// Clear user cache from safeStorage
 const clearUserCache = () => {
     try {
-        localStorage.removeItem(USER_CACHE_KEY);
-        localStorage.removeItem(PORTAL_STORAGE_KEY);
+        safeStorage.removeItem(USER_CACHE_KEY);
+        safeStorage.removeItem(PORTAL_STORAGE_KEY);
     } catch (e) {
         console.error('[Auth] Failed to clear user cache:', e);
     }
@@ -118,7 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (userProfile.role === UserRole.PLANT_ADMIN) {
             // For Plant Admins, check if they have a saved portal preference
             try {
-                const savedPortal = localStorage.getItem(PORTAL_STORAGE_KEY);
+                const savedPortal = safeStorage.getItem(PORTAL_STORAGE_KEY);
                 if (savedPortal) {
                     resolvedPortal = JSON.parse(savedPortal);
                 }
@@ -291,12 +292,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setCachedUser(currentUser, newPortal);
         }
 
-        // Persist portal preference to localStorage
+        // Persist portal preference to safeStorage
         try {
             if (newPortal) {
-                localStorage.setItem(PORTAL_STORAGE_KEY, JSON.stringify(newPortal));
+                safeStorage.setItem(PORTAL_STORAGE_KEY, JSON.stringify(newPortal));
             } else {
-                localStorage.removeItem(PORTAL_STORAGE_KEY);
+                safeStorage.removeItem(PORTAL_STORAGE_KEY);
             }
         } catch (e) {
             console.error('[Auth] Failed to persist portal state:', e);

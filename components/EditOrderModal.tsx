@@ -6,6 +6,13 @@ import Select from './common/Select';
 import Button from './common/Button';
 import { useAuth } from '../hooks/useAuth';
 import { PlusCircle, Trash2, Gift, Star, XCircle, TrendingUp, TrendingDown, Save, Copy, AlertTriangle } from 'lucide-react';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog"
 import Input from './common/Input';
 import { formatIndianCurrency } from '../utils/formatting';
 
@@ -16,9 +23,9 @@ interface EditOrderModalProps {
 }
 
 interface OrderItemState {
-  id: string; // unique key for react list
-  skuId: string;
-  quantity: number;
+    id: string; // unique key for react list
+    skuId: string;
+    quantity: number;
 }
 
 interface DisplayItem {
@@ -73,15 +80,15 @@ const calculateOrderMetricsForEdit = ({
             .filter(item => item.tierId === distributor.priceTierId)
             .forEach(item => tierItemsMap.set(item.skuId, item.price));
     }
-    
+
     const skuIdSet = new Set(skus.map(s => s.id));
     const applicableSchemes: Scheme[] = [];
     for (const scheme of allSchemes) {
         if (
-            scheme.startDate > today || 
-            scheme.endDate < today || 
-            scheme.stoppedDate || 
-            !scheme.buySkuId || 
+            scheme.startDate > today ||
+            scheme.endDate < today ||
+            scheme.stoppedDate ||
+            !scheme.buySkuId ||
             !scheme.getSkuId ||
             !skuIdSet.has(scheme.buySkuId) ||
             !skuIdSet.has(scheme.getSkuId)
@@ -131,14 +138,14 @@ const calculateOrderMetricsForEdit = ({
                 if (totalQuantity >= scheme.buyQuantity) {
                     const timesApplied = Math.floor(totalQuantity / scheme.buyQuantity);
                     const totalFree = timesApplied * scheme.getQuantity;
-                    
+
                     const existing = freebies.get(scheme.getSkuId) || { quantity: 0 };
                     freebies.set(scheme.getSkuId, { quantity: existing.quantity + totalFree });
                 }
             });
         }
     });
-    
+
     freebies.forEach((data, skuId) => {
         const sku = skus.find(s => s.id === skuId);
         if (sku) {
@@ -150,7 +157,7 @@ const calculateOrderMetricsForEdit = ({
 
     const issues: string[] = [];
     const requiredStock = new Map<string, number>();
-    
+
     itemsToDisplay.forEach(item => {
         requiredStock.set(item.skuId, (requiredStock.get(item.skuId) || 0) + item.quantity);
     });
@@ -166,12 +173,12 @@ const calculateOrderMetricsForEdit = ({
 
     const calculatedStockCheck = { hasIssues: issues.length > 0, issues };
 
-    return { 
-        displayItems: itemsToDisplay, 
-        subtotal: currentSubtotal, 
-        gstAmount: currentGstAmount, 
-        grandTotal: calculatedGrandTotal, 
-        stockCheck: calculatedStockCheck 
+    return {
+        displayItems: itemsToDisplay,
+        subtotal: currentSubtotal,
+        gstAmount: currentGstAmount,
+        grandTotal: calculatedGrandTotal,
+        stockCheck: calculatedStockCheck
     };
 };
 
@@ -187,7 +194,7 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
     const [itemErrors, setItemErrors] = useState<Record<string, string>>({});
     const [availableStock, setAvailableStock] = useState<Map<string, number>>(new Map());
     const [originalItems, setOriginalItems] = useState<Map<string, number>>(new Map());
-    
+
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -217,7 +224,7 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
                 setAllSchemes(schemesData);
                 setPriceTiers(priceTierData);
                 setAllTierItems(tierItemData);
-                
+
                 const initialItems = initialItemsData
                     .filter(item => !item.isFreebie)
                     .map(item => ({
@@ -226,7 +233,7 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
                         quantity: item.quantity
                     }));
                 setItems(initialItems);
-                
+
                 const originalMap = new Map<string, number>();
                 initialItemsData.filter(i => !i.isFreebie).forEach(item => {
                     originalMap.set(item.skuId, (originalMap.get(item.skuId) || 0) + item.quantity);
@@ -249,12 +256,12 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
         loadData();
     }, [order, portal]);
 
-    const { 
-        displayItems, 
-        subtotal, 
-        gstAmount, 
-        grandTotal, 
-        stockCheck 
+    const {
+        displayItems,
+        subtotal,
+        gstAmount,
+        grandTotal,
+        stockCheck
     } = useMemo(() => {
         return calculateOrderMetricsForEdit({
             orderDate: order.date,
@@ -273,7 +280,7 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
             setItems([...items, { id: Date.now().toString(), skuId: skus[0].id, quantity: 1 }]);
         }
     };
-    
+
     const handleCopyItem = (itemToCopy: OrderItemState) => {
         const newItem: OrderItemState = {
             ...itemToCopy,
@@ -292,7 +299,7 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
         if (field === 'quantity') {
             const qty = Number(value);
             setItemErrors(prev => {
-                const newErrors = {...prev};
+                const newErrors = { ...prev };
                 if (qty <= 0) {
                     newErrors[itemId] = 'Quantity must be positive.';
                 } else {
@@ -309,11 +316,11 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
 
         const sku = skus.find(s => s.id === item.skuId);
         const skuName = sku ? `'${sku.name}'` : 'this item';
-        
+
         if (window.confirm(`Are you sure you want to remove ${skuName} from the order?`)) {
             setItems(items.filter((item) => item.id !== itemIdToRemove));
             setItemErrors(prev => {
-                const newErrors = {...prev};
+                const newErrors = { ...prev };
                 delete newErrors[itemIdToRemove];
                 return newErrors;
             });
@@ -333,10 +340,10 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
                 setError("The increase in order value exceeds the available funds (wallet + credit limit).");
                 return;
             }
-            
+
             const amountFromCreditForDelta = Math.max(0, delta - Math.max(0, distributor.walletBalance));
             const confirmationMessage = `The order change of ${formatIndianCurrency(delta)} (incl. GST) cannot be fully covered by the current wallet balance of ${formatIndianCurrency(distributor.walletBalance)}.\n\nDo you want to proceed?\n\nThis will use an additional ${formatIndianCurrency(amountFromCreditForDelta)} from the credit limit.`;
-            
+
             if (!window.confirm(confirmationMessage)) {
                 return; // User cancelled the operation
             }
@@ -357,121 +364,124 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
             setLoading(false);
         }
     };
-    
+
     const delta = grandTotal - order.totalAmount;
     const canAfford = distributor && delta > 0 ? (delta <= distributor.walletBalance + distributor.creditLimit) : true;
     const hasErrors = Object.keys(itemErrors).length > 0;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4" onClick={onClose}>
-            <div className="bg-card rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                <div className="p-4 border-b flex justify-between items-center">
-                    <h2 className="text-xl font-bold">Edit Order <span className="font-mono text-sm text-contentSecondary block sm:inline mt-1 sm:mt-0">{order.id}</span></h2>
-                    <button onClick={onClose} className="p-1 rounded-full hover:bg-background"><XCircle /></button>
-                </div>
-                
+        <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0">
+                <DialogHeader className="p-4 border-b">
+                    <DialogTitle className="flex justify-between items-center text-xl font-bold">
+                        <span>Edit Order <span className="font-mono text-sm text-contentSecondary">{order.id}</span></span>
+                    </DialogTitle>
+                </DialogHeader>
+
                 {loading && !distributor ? <div className="p-8 text-center">Loading...</div> : (
-                <div className="p-6 overflow-y-auto flex-grow space-y-6">
-                    <Card>
-                        <h3 className="text-lg font-semibold mb-2">Order Items</h3>
-                        <div className="space-y-2">
-                            {items.map((item) => (
-                                <div key={item.id} className="grid grid-cols-12 gap-2 items-start p-2 rounded-md bg-background">
-                                    <div className="col-span-12 sm:col-span-7">
-                                        <Select value={item.skuId} onChange={(e) => handleItemChange(item.id, 'skuId', e.target.value)}>
-                                            {skus.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                        </Select>
+                    <div className="p-6 overflow-y-auto flex-grow space-y-6">
+                        <Card>
+                            <h3 className="text-lg font-semibold mb-2">Order Items</h3>
+                            <div className="space-y-2">
+                                {items.map((item) => (
+                                    <div key={item.id} className="grid grid-cols-12 gap-2 items-start p-2 rounded-md bg-background">
+                                        <div className="col-span-12 sm:col-span-7">
+                                            <Select value={item.skuId} onChange={(e) => handleItemChange(item.id, 'skuId', e.target.value)}>
+                                                {skus.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                            </Select>
+                                        </div>
+                                        <div className="col-span-8 sm:col-span-3">
+                                            <Input
+                                                type="number"
+                                                value={item.quantity}
+                                                onChange={(e) => handleItemChange(item.id, 'quantity', parseInt(e.target.value) || 0)}
+                                                min="1"
+                                                error={itemErrors[item.id]}
+                                            />
+                                        </div>
+                                        <div className="col-span-4 sm:col-span-2 text-right self-center flex justify-end">
+                                            <button onClick={() => handleCopyItem(item)} className="text-blue-500 hover:text-blue-700 p-1" title="Duplicate Item"><Copy size={18} /></button>
+                                            <button onClick={() => handleRemoveItem(item.id)} className="text-red-500 hover:text-red-700 p-1" title="Remove Item"><Trash2 size={20} /></button>
+                                        </div>
                                     </div>
-                                    <div className="col-span-8 sm:col-span-3">
-                                        <Input
-                                            type="number"
-                                            value={item.quantity}
-                                            onChange={(e) => handleItemChange(item.id, 'quantity', parseInt(e.target.value) || 0)}
-                                            min="1"
-                                            error={itemErrors[item.id]}
-                                        />
-                                    </div>
-                                    <div className="col-span-4 sm:col-span-2 text-right self-center flex justify-end">
-                                        <button onClick={() => handleCopyItem(item)} className="text-blue-500 hover:text-blue-700 p-1" title="Duplicate Item"><Copy size={18}/></button>
-                                        <button onClick={() => handleRemoveItem(item.id)} className="text-red-500 hover:text-red-700 p-1" title="Remove Item"><Trash2 size={20}/></button>
-                                    </div>
+                                ))}
+                            </div>
+                            <div className="mt-4">
+                                <Button onClick={handleAddSku} variant="secondary" size="sm"><PlusCircle size={16} className="mr-2" /> Add Item</Button>
+                            </div>
+                        </Card>
+
+                        <Card>
+                            <h3 className="font-semibold mb-2">New Order Summary</h3>
+                            <div className="overflow-x-auto">
+                                <table className="w-full min-w-[400px]">
+                                    <tbody>
+                                        {displayItems.map((item, index) => (
+                                            <tr key={index} className={item.isFreebie ? 'bg-green-50' : ''}>
+                                                <td className="p-2 w-1/2">
+                                                    {item.skuName}
+                                                    {item.isFreebie && <Gift size={12} className="inline ml-2 text-green-600" />}
+                                                    {item.hasTierPrice && <Star size={12} className="inline ml-2 text-yellow-500" />}
+                                                </td>
+                                                <td className="p-2 text-center">{item.quantity}</td>
+                                                <td className="p-2 text-right">{formatIndianCurrency(item.unitPrice)}</td>
+                                                <td className="p-2 text-right font-semibold">{formatIndianCurrency(item.quantity * item.unitPrice)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Card>
+
+                        <Card className="bg-blue-50">
+                            <h3 className="font-semibold mb-2 text-content">Financial Impact</h3>
+                            <div className="space-y-2 text-sm">
+                                <div className="flex justify-between">
+                                    <span>Distributor's Available Funds:</span>
+                                    <span className="font-medium">{distributor ? formatIndianCurrency(distributor.walletBalance + distributor.creditLimit) : '...'}</span>
                                 </div>
-                            ))}
-                        </div>
-                         <div className="mt-4">
-                            <Button onClick={handleAddSku} variant="secondary" size="sm"><PlusCircle size={16} className="mr-2"/> Add Item</Button>
-                        </div>
-                    </Card>
+                                <div className="flex justify-between"><span>Original Total:</span> <span className="font-medium">{formatIndianCurrency(order.totalAmount)}</span></div>
+                                <div className="flex justify-between"><span>New Subtotal:</span> <span className="font-medium">{formatIndianCurrency(subtotal)}</span></div>
+                                <div className="flex justify-between"><span>GST (Calculated):</span> <span className="font-medium">{formatIndianCurrency(gstAmount)}</span></div>
+                                <div className="flex justify-between font-bold"><span>New Grand Total:</span> <span className="font-medium">{formatIndianCurrency(grandTotal)}</span></div>
+                                <div className={`flex justify-between border-t pt-2 mt-2 font-bold ${delta > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                    <span>Difference:</span>
+                                    <span className="flex items-center">
+                                        {delta !== 0 && (delta > 0 ? <TrendingUp size={16} className="mr-1" /> : <TrendingDown size={16} className="mr-1" />)}
+                                        {formatIndianCurrency(Math.abs(delta))}
+                                    </span>
+                                </div>
+                            </div>
+                            {!canAfford && <p className="text-red-600 text-xs mt-2 text-center">Distributor has insufficient funds (including credit) to cover this increase.</p>}
+                        </Card>
 
-                    <Card>
-                        <h3 className="font-semibold mb-2">New Order Summary</h3>
-                        <div className="overflow-x-auto">
-                            <table className="w-full min-w-[400px]">
-                                <tbody>
-                                    {displayItems.map((item, index) => (
-                                        <tr key={index} className={item.isFreebie ? 'bg-green-50' : ''}>
-                                            <td className="p-2 w-1/2">
-                                                {item.skuName}
-                                                {item.isFreebie && <Gift size={12} className="inline ml-2 text-green-600"/>}
-                                                {item.hasTierPrice && <Star size={12} className="inline ml-2 text-yellow-500"/>}
-                                            </td>
-                                            <td className="p-2 text-center">{item.quantity}</td>
-                                            <td className="p-2 text-right">{formatIndianCurrency(item.unitPrice)}</td>
-                                            <td className="p-2 text-right font-semibold">{formatIndianCurrency(item.quantity * item.unitPrice)}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </Card>
-
-                    <Card className="bg-blue-50">
-                        <h3 className="font-semibold mb-2 text-content">Financial Impact</h3>
-                        <div className="space-y-2 text-sm">
-                            <div className="flex justify-between">
-                                <span>Distributor's Available Funds:</span> 
-                                <span className="font-medium">{distributor ? formatIndianCurrency(distributor.walletBalance + distributor.creditLimit) : '...'}</span>
+                        {stockCheck.hasIssues && (
+                            <div className="p-3 rounded-lg bg-yellow-100 text-yellow-800 flex items-start text-sm">
+                                <AlertTriangle size={20} className="mr-3 mt-0.5 flex-shrink-0" />
+                                <div>
+                                    <h3 className="font-semibold">Stock Alert</h3>
+                                    <p>The requested quantities exceed available stock (including items already in this order).</p>
+                                    <ul className="list-disc list-inside mt-1">
+                                        {stockCheck.issues.map((issue, i) => <li key={i}>{issue}</li>)}
+                                    </ul>
+                                </div>
                             </div>
-                            <div className="flex justify-between"><span>Original Total:</span> <span className="font-medium">{formatIndianCurrency(order.totalAmount)}</span></div>
-                            <div className="flex justify-between"><span>New Subtotal:</span> <span className="font-medium">{formatIndianCurrency(subtotal)}</span></div>
-                            <div className="flex justify-between"><span>GST (Calculated):</span> <span className="font-medium">{formatIndianCurrency(gstAmount)}</span></div>
-                            <div className="flex justify-between font-bold"><span>New Grand Total:</span> <span className="font-medium">{formatIndianCurrency(grandTotal)}</span></div>
-                            <div className={`flex justify-between border-t pt-2 mt-2 font-bold ${delta > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                <span>Difference:</span>
-                                <span className="flex items-center">
-                                    {delta !== 0 && (delta > 0 ? <TrendingUp size={16} className="mr-1"/> : <TrendingDown size={16} className="mr-1"/>)}
-                                    {formatIndianCurrency(Math.abs(delta))}
-                                </span>
-                            </div>
-                        </div>
-                        {!canAfford && <p className="text-red-600 text-xs mt-2 text-center">Distributor has insufficient funds (including credit) to cover this increase.</p>}
-                    </Card>
-                    
-                     {stockCheck.hasIssues && (
-                        <div className="p-3 rounded-lg bg-yellow-100 text-yellow-800 flex items-start text-sm">
-                            <AlertTriangle size={20} className="mr-3 mt-0.5 flex-shrink-0"/>
-                            <div>
-                                <h3 className="font-semibold">Stock Alert</h3>
-                                <p>The requested quantities exceed available stock (including items already in this order).</p>
-                                <ul className="list-disc list-inside mt-1">
-                                    {stockCheck.issues.map((issue, i) => <li key={i}>{issue}</li>)}
-                                </ul>
-                            </div>
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
                 )}
-                
+
                 {error && <div className="p-4 text-center text-sm bg-red-100 text-red-800">{error}</div>}
 
-                <div className="p-4 bg-background border-t flex justify-end gap-4">
-                    <Button variant="secondary" onClick={onClose}>Cancel</Button>
-                    <Button onClick={handleSaveChanges} isLoading={loading} disabled={loading || !canAfford || items.length === 0 || hasErrors || stockCheck.hasIssues}>
-                        <Save size={16} className="mr-2"/> Save Changes
-                    </Button>
-                </div>
-            </div>
-        </div>
+                <DialogFooter className="p-4 border-t bg-background">
+                    <div className="flex justify-end gap-4 w-full">
+                        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+                        <Button onClick={handleSaveChanges} isLoading={loading} disabled={loading || !canAfford || items.length === 0 || hasErrors || stockCheck.hasIssues}>
+                            <Save size={16} className="mr-2" /> Save Changes
+                        </Button>
+                    </div>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 };
 

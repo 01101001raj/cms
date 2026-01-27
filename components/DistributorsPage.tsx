@@ -12,13 +12,15 @@ import { formatIndianCurrency, formatDateDDMMYYYY } from '../utils/formatting';
 import { useSortableData } from '../hooks/useSortableData';
 import SortableTableHeader from './common/SortableTableHeader';
 import { useNavigate } from 'react-router-dom';
+import { useDistributors } from '../hooks/queries/useDistributors';
 
 const DistributorsPage: React.FC = () => {
-    const { currentUser } = useAuth();
+    const { currentUser, portal } = useAuth();
     const navigate = useNavigate();
-    const [distributors, setDistributors] = useState<Distributor[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+
+    // React Query Hook
+    const { data: distributors, isLoading: loading, error: queryError } = useDistributors(portal);
+    const error = queryError instanceof Error ? queryError.message : null;
 
     // Filters
     const [searchQuery, setSearchQuery] = useState('');
@@ -26,33 +28,20 @@ const DistributorsPage: React.FC = () => {
     const [asmFilter, setAsmFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'inactive'
 
-    useEffect(() => {
-        const fetchDistributors = async () => {
-            setLoading(true);
-            try {
-                const data = await api.getDistributors(null);
-                setDistributors(data);
-            } catch (err) {
-                setError(err instanceof Error ? err.message : 'Failed to load distributors');
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchDistributors();
-    }, []);
-
-    // Derived Lists for Filters
+    // Derived Lists for Filters (Memoized from cached data)
     const uniqueStates = useMemo(() => {
+        if (!distributors) return [];
         const states = new Set(distributors.map(d => d.state).filter(Boolean));
         return Array.from(states).sort();
     }, [distributors]);
 
     const uniqueASMs = useMemo(() => {
+        if (!distributors) return [];
         const asms = new Set(distributors.map(d => d.asmName).filter(Boolean));
         return Array.from(asms).sort();
     }, [distributors]);
 
-    // Helper to determine status
+    // Helper to Determine Status
     const getStatus = (lastOrderDate?: string) => {
         if (!lastOrderDate) return 'inactive'; // No orders = Inactive
         const date = new Date(lastOrderDate);
@@ -73,6 +62,7 @@ const DistributorsPage: React.FC = () => {
 
     // Filter Logic
     const filteredDistributors = useMemo(() => {
+        if (!distributors) return [];
         return distributors.filter(d => {
             const matchesSearch =
                 d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

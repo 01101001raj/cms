@@ -3,6 +3,7 @@ from typing import List
 from app.models.schemas import SKU, SKUCreate, Scheme, SchemeCreate, PriceTier, PriceTierCreate, PriceTierItem
 from app.core.supabase import get_supabase_client
 from supabase import Client
+from app.services.audit import log_product_created, log_product_updated, log_scheme_created
 
 router = APIRouter(prefix="/products", tags=["Products & Pricing"])
 
@@ -28,6 +29,15 @@ async def create_sku(
         response = supabase.table("skus").insert(sku.model_dump()).execute()
         if not response.data:
             raise HTTPException(status_code=400, detail="Failed to create SKU")
+        
+        # Audit log
+        await log_product_created(
+            product_id=response.data[0]["id"],
+            user_id="system",
+            username="system",
+            product_name=sku.name
+        )
+        
         return response.data[0]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -44,6 +54,15 @@ async def update_sku(
         response = supabase.table("skus").update(sku.model_dump()).eq("id", sku_id).execute()
         if not response.data:
             raise HTTPException(status_code=404, detail="SKU not found")
+        
+        # Audit log
+        await log_product_updated(
+            product_id=sku_id,
+            user_id="system",
+            username="system",
+            product_name=sku.name
+        )
+        
         return response.data[0]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -89,6 +108,15 @@ async def create_scheme(
             print("[ERROR] No data returned from scheme creation")
             raise HTTPException(status_code=400, detail="Failed to create scheme")
         print(f"[SUCCESS] Scheme created successfully: {response.data[0]}")
+        
+        # Audit log
+        await log_scheme_created(
+            scheme_id=response.data[0]["id"],
+            user_id="system",
+            username="system",
+            description=scheme.description
+        )
+        
         return response.data[0]
     except Exception as e:
         print(f"[ERROR] Exception in create_scheme: {str(e)}")
