@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, status, Response
+from app.core.auth import get_current_user, CurrentUser
 from typing import List, Optional
-from app.models.schemas import Distributor, DistributorCreate, PortalState
+from app.models import Distributor, DistributorCreate, PortalState
 from app.core.supabase import get_supabase_client
 from supabase import Client
 from datetime import datetime
@@ -100,9 +101,10 @@ async def get_distributor_by_id(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("", response_model=Distributor)
+@router.post("", response_model=Distributor, status_code=status.HTTP_201_CREATED)
 async def create_distributor(
     distributor: DistributorCreate,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_client)
 ):
     """
@@ -139,8 +141,8 @@ async def create_distributor(
         # Audit log
         await log_distributor_created(
             distributor_id=response.data[0]["id"],
-            user_id="system",
-            username="system",
+            user_id=current_user.id,
+            username=current_user.email,
             distributor_name=distributor.name
         )
 
@@ -153,6 +155,7 @@ async def create_distributor(
 async def update_distributor(
     distributor_id: str,
     distributor: DistributorCreate,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_client)
 ):
     """
@@ -171,8 +174,8 @@ async def update_distributor(
         # Audit log
         await log_distributor_updated(
             distributor_id=distributor_id,
-            user_id="system",
-            username="system",
+            user_id=current_user.id,
+            username=current_user.email,
             distributor_name=distributor.name,
             changes=data
         )
@@ -182,9 +185,10 @@ async def update_distributor(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/{distributor_id}")
+@router.delete("/{distributor_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_distributor(
     distributor_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_client)
 ):
     """
@@ -200,12 +204,12 @@ async def delete_distributor(
         # Audit log
         await log_distributor_deleted(
             distributor_id=distributor_id,
-            user_id="system",
-            username="system",
+            user_id=current_user.id,
+            username=current_user.email,
             distributor_name=dist_name
         )
         
-        return {"message": "Distributor deleted successfully"}
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -213,6 +217,7 @@ async def delete_distributor(
 @router.post("/bulk-import")
 async def bulk_import_distributors(
     distributors: List[DistributorCreate],
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_client)
 ):
     """

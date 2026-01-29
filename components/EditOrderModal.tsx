@@ -378,7 +378,7 @@ const EditOrderModal: React.FC<EditOrderModalProps> = ({ order, onClose, onSave 
                     </DialogTitle>
                 </DialogHeader>
 
-                {loading && !distributor ? <div className="p-8 text-center">Loading...</div> : (
+                {loading && !distributor ? <div className="p-8 text-center">Loading…</div> : (
                     <div className="p-6 overflow-y-auto flex-grow space-y-6">
                         <Card>
                             <h3 className="text-lg font-semibold mb-2">Order Items</h3>

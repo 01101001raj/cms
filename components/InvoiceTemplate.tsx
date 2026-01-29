@@ -80,7 +80,7 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ invoiceData, billingD
                 <header className="flex justify-between items-start border-b-2 border-slate-900 pb-6 mb-8">
                     <div className="flex items-start gap-6">
                         {/* Logo */}
-                        <img src="/nrich_logo.png" alt="Company Logo" className="h-20 w-auto object-contain grayscale" />
+                        <img src="/nrich_logo.png" alt="Company Logo" width="80" height="80" className="h-20 w-auto object-contain grayscale" />
 
                         <div className="flex flex-col">
                             {/* Company Info */}

@@ -88,6 +88,13 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    /* Optimize touch interactions */
+    touch-action: manipulation;
+  }
+
+  /* Improve tap targets for interactive elements */
+  button, input, select, textarea, a {
+    touch-action: manipulation;
   }
 }
 

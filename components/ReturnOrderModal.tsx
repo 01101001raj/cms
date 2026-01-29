@@ -210,7 +210,7 @@ const ReturnOrderModal: React.FC<ReturnOrderModalProps> = ({ order, onClose, onS
                     </DialogTitle>
                 </DialogHeader>
 
-                {loading ? <div className="p-8 text-center">Loading...</div> : (
+                {loading ? <div className="p-8 text-center">Loading…</div> : (
                     <div className="p-6 overflow-y-auto flex-grow space-y-6">
                         <Card>
                             <h3 className="text-lg font-semibold mb-2">Select Items to Return</h3>

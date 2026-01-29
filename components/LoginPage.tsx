@@ -53,7 +53,7 @@ const LoginPage: React.FC = () => {
     <div className="flex-1 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <img src="/logo.png" alt="Distributor Portal" className="mx-auto h-20 w-auto object-contain" />
+          <img src="/logo.png" alt="Distributor Portal" width="80" height="80" className="mx-auto h-20 w-auto object-contain" />
           <h1 className="text-3xl font-bold text-content mt-4">Distributor Portal</h1>
         </div>
         <Card>

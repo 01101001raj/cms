@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, status
 from typing import List, Optional
-from app.models.schemas import WalletTransaction, WalletRecharge, JournalVoucher
+from app.models import WalletTransaction, WalletRecharge, JournalVoucher
+from app.core.auth import get_current_user, CurrentUser
 from app.core.supabase import get_supabase_client, get_supabase_admin_client
 from supabase import Client
 from datetime import datetime
@@ -47,9 +48,10 @@ async def get_wallet_transactions(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/recharge")
+@router.post("/recharge", status_code=status.HTTP_201_CREATED)
 async def recharge_wallet(
     recharge: WalletRecharge,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_admin_client)
 ):
     """
@@ -73,7 +75,7 @@ async def recharge_wallet(
                 "balance_after": 0,  # Temporary, will recalculate
                 "payment_method": recharge.paymentMethod,
                 "remarks": recharge.remarks,
-                "initiated_by": recharge.username
+                "initiated_by": current_user.email
             }).execute()
 
             # Get ALL transactions for this distributor in chronological order
@@ -102,8 +104,8 @@ async def recharge_wallet(
             # Audit log
             await log_wallet_recharge(
                 distributor_id=recharge.distributorId,
-                user_id=recharge.username,
-                username=recharge.username,
+                user_id=current_user.id,
+                username=current_user.email,
                 amount=recharge.amount,
                 new_balance=running_balance
             )
@@ -125,7 +127,7 @@ async def recharge_wallet(
                 "balance_after": 0,  # Temporary, will recalculate
                 "payment_method": recharge.paymentMethod,
                 "remarks": recharge.remarks,
-                "initiated_by": recharge.username
+                "initiated_by": current_user.email
             }).execute()
 
             # Get ALL transactions for this store in chronological order
@@ -154,8 +156,8 @@ async def recharge_wallet(
             # Audit log
             await log_wallet_recharge(
                 distributor_id=recharge.storeId,
-                user_id=recharge.username,
-                username=recharge.username,
+                user_id=current_user.id,
+                username=current_user.email,
                 amount=recharge.amount,
                 new_balance=running_balance
             )
@@ -165,9 +167,10 @@ async def recharge_wallet(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/journal-voucher")
+@router.post("/journal-voucher", status_code=status.HTTP_201_CREATED)
 async def record_journal_voucher(
     jv: JournalVoucher,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_admin_client)
 ):
     """
@@ -190,7 +193,7 @@ async def record_journal_voucher(
                 "balance_after": 0,  # Temporary, will recalculate
                 "payment_method": None,  # JV doesn't have payment method
                 "remarks": jv.remarks,
-                "initiated_by": jv.username
+                "initiated_by": current_user.email
             }).execute()
 
             # Get ALL transactions for this distributor in chronological order
@@ -227,7 +230,7 @@ async def record_journal_voucher(
                 "balance_after": 0,  # Temporary, will recalculate
                 "payment_method": None,  # JV doesn't have payment method
                 "remarks": jv.remarks,
-                "initiated_by": jv.username
+                "initiated_by": current_user.email
             }).execute()
 
             # Get ALL transactions for this store in chronological order

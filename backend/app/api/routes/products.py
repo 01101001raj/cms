@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, status, Response
+from app.core.auth import get_current_user, CurrentUser
 from typing import List
-from app.models.schemas import SKU, SKUCreate, Scheme, SchemeCreate, PriceTier, PriceTierCreate, PriceTierItem
+from app.models import SKU, SKUCreate, Scheme, SchemeCreate, PriceTier, PriceTierCreate, PriceTierItem
 from app.core.supabase import get_supabase_client
 from supabase import Client
 from app.services.audit import log_product_created, log_product_updated, log_scheme_created
@@ -19,9 +20,10 @@ async def get_skus(supabase: Client = Depends(get_supabase_client)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/skus", response_model=SKU)
+@router.post("/skus", response_model=SKU, status_code=status.HTTP_201_CREATED)
 async def create_sku(
     sku: SKUCreate,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_client)
 ):
     """Create a new SKU"""
@@ -33,8 +35,8 @@ async def create_sku(
         # Audit log
         await log_product_created(
             product_id=response.data[0]["id"],
-            user_id="system",
-            username="system",
+            user_id=current_user.id,
+            username=current_user.email,
             product_name=sku.name
         )
         
@@ -47,6 +49,7 @@ async def create_sku(
 async def update_sku(
     sku_id: str,
     sku: SKUCreate,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_client)
 ):
     """Update SKU information"""
@@ -58,8 +61,8 @@ async def update_sku(
         # Audit log
         await log_product_updated(
             product_id=sku_id,
-            user_id="system",
-            username="system",
+            user_id=current_user.id,
+            username=current_user.email,
             product_name=sku.name
         )
         
@@ -68,7 +71,7 @@ async def update_sku(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/skus/{sku_id}")
+@router.delete("/skus/{sku_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_sku(
     sku_id: str,
     supabase: Client = Depends(get_supabase_client)
@@ -76,7 +79,7 @@ async def delete_sku(
     """Delete a SKU"""
     try:
         response = supabase.table("skus").delete().eq("id", sku_id).execute()
-        return {"message": "SKU deleted successfully"}
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -94,9 +97,10 @@ async def get_schemes(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/schemes", response_model=Scheme)
+@router.post("/schemes", response_model=Scheme, status_code=status.HTTP_201_CREATED)
 async def create_scheme(
     scheme: SchemeCreate,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_client)
 ):
     """Create a new scheme"""
@@ -112,8 +116,8 @@ async def create_scheme(
         # Audit log
         await log_scheme_created(
             scheme_id=response.data[0]["id"],
-            user_id="system",
-            username="system",
+            user_id=current_user.id,
+            username=current_user.email,
             description=scheme.description
         )
         
@@ -141,7 +145,7 @@ async def update_scheme(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/schemes/{scheme_id}")
+@router.delete("/schemes/{scheme_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_scheme(
     scheme_id: str,
     supabase: Client = Depends(get_supabase_client)
@@ -149,7 +153,7 @@ async def delete_scheme(
     """Delete a scheme"""
     try:
         response = supabase.table("schemes").delete().eq("id", scheme_id).execute()
-        return {"message": "Scheme deleted successfully"}
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -165,7 +169,7 @@ async def get_price_tiers(supabase: Client = Depends(get_supabase_client)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/price-tiers", response_model=PriceTier)
+@router.post("/price-tiers", response_model=PriceTier, status_code=status.HTTP_201_CREATED)
 async def create_price_tier(
     tier: PriceTierCreate,
     supabase: Client = Depends(get_supabase_client)

@@ -3,7 +3,8 @@ Returns Management Routes
 Handles product returns, refunds, and credit notes.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, status
+from app.core.auth import get_current_user, CurrentUser
 from typing import List, Optional
 from pydantic import BaseModel
 from app.core.supabase import get_supabase_client, get_supabase_admin_client
@@ -64,9 +65,10 @@ async def get_returns(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("")
+@router.post("", status_code=status.HTTP_201_CREATED)
 async def create_return(
     return_data: ReturnCreate,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_admin_client)
 ):
     """Create a new return request"""
@@ -86,7 +88,7 @@ async def create_return(
             "estimated_credit": total_credit,
             "remarks": return_data.remarks,
             "created_at": datetime.utcnow().isoformat(),
-            "created_by": return_data.username
+            "created_by": current_user.email
         }
         
         response = supabase.table("returns").insert(return_record).execute()
@@ -109,8 +111,8 @@ async def create_return(
         await log_return_initiated(
             return_id=return_id,
             order_id=return_data.orderId,
-            user_id=return_data.username,
-            username=return_data.username,
+            user_id=current_user.id,
+            username=current_user.email,
             amount=total_credit
         )
         
@@ -126,6 +128,7 @@ async def create_return(
 async def approve_return(
     return_id: str,
     confirm_data: ReturnConfirm,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_admin_client)
 ):
     """Approve a return and credit the distributor wallet"""
@@ -154,7 +157,7 @@ async def approve_return(
             "amount": confirm_data.creditAmount,
             "balance_after": new_balance,
             "remarks": f"Return credit for return #{return_id}",
-            "initiated_by": confirm_data.username
+            "initiated_by": current_user.email
         }).execute()
         
         # Update return status
@@ -162,15 +165,15 @@ async def approve_return(
             "status": ReturnStatus.CREDITED.value,
             "actual_credit": confirm_data.creditAmount,
             "approved_at": datetime.utcnow().isoformat(),
-            "approved_by": confirm_data.username,
+            "approved_by": current_user.email,
             "approval_remarks": confirm_data.remarks
         }).eq("id", return_id).execute()
         
         # Audit log
         await log_return_confirmed(
             return_id=return_id,
-            user_id=confirm_data.username,
-            username=confirm_data.username,
+            user_id=current_user.id,
+            username=current_user.email,
             amount=confirm_data.creditAmount
         )
         
@@ -186,7 +189,7 @@ async def approve_return(
 async def reject_return(
     return_id: str,
     remarks: str = Query(...),
-    username: str = Query(...),
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_admin_client)
 ):
     """Reject a return request"""
@@ -194,7 +197,7 @@ async def reject_return(
         supabase.table("returns").update({
             "status": ReturnStatus.REJECTED.value,
             "approved_at": datetime.utcnow().isoformat(),
-            "approved_by": username,
+            "approved_by": current_user.email,
             "approval_remarks": remarks
         }).eq("id", return_id).execute()
         

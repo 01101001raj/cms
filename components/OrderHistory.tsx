@@ -13,6 +13,7 @@ import Select from './common/Select';
 import DateRangePicker from './common/DateRangePicker';
 import { formatIndianCurrency, formatDateDDMMYYYY } from '../utils/formatting';
 import { useSortableData } from '../hooks/useSortableData';
+import { useOrderManagement } from '../hooks/useOrderManagement';
 import SortableTableHeader from './common/SortableTableHeader';
 import { useNavigate } from 'react-router-dom';
 import { generateAndDownloadInvoice } from '../utils/invoiceGenerator';
@@ -37,115 +38,10 @@ import { cn } from '@/lib/utils';
 
 
 // Sub-component for showing dispatch items
-const TransferDetails: React.FC<{ transferId: string }> = React.memo(({ transferId }) => {
-    const [items, setItems] = useState<EnrichedStockTransferItem[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-        setLoading(true);
-        api.getEnrichedStockTransferItems(transferId)
-            .then(data => {
-                setItems(data || []);
-                setLoading(false);
-            })
-            .catch(err => {
-                console.error("Failed to load transfer items:", err);
-                setError("Failed to load items.");
-                setLoading(false);
-            });
-    }, [transferId]);
-
-    if (loading) return <div className="p-4"><Loader text="Loading items..." /></div>;
-    if (error) return <div className="p-4 text-destructive text-sm">{error}</div>;
-
-    return (
-        <div className="bg-card p-4 rounded-lg border border-border">
-            <h4 className="font-bold mb-2 text-foreground">Dispatched Items</h4>
-            <div className="overflow-x-auto">
-                <table className="w-full bg-card rounded-md min-w-[500px] text-sm">
-                    <thead className="bg-muted text-muted-foreground uppercase font-semibold text-xs border-b border-border">
-                        <tr className="text-left border-b border-border">
-                            <th className="p-3 font-semibold">Product</th>
-                            <th className="p-3 font-semibold text-center">Quantity</th>
-                            <th className="p-3 font-semibold text-right">Unit Value</th>
-                            <th className="p-3 font-semibold text-right">Subtotal</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {items.length > 0 ? items.map((item) => (
-                            <tr key={item.id} className={`border-b border-border last:border-none ${item.isFreebie ? 'bg-success/10' : ''}`}>
-                                <td className="p-2 text-foreground">{item.skuName} {item.isFreebie && <Gift size={12} className="inline ml-1 text-success" />}</td>
-                                <td className="p-2 text-center text-foreground">{item.quantity}</td>
-                                <td className="p-2 text-right text-foreground">{!item.isFreebie ? formatIndianCurrency(item.unitPrice) : 'FREE'}</td>
-                                <td className="p-2 font-semibold text-right text-foreground">{formatIndianCurrency(item.quantity * item.unitPrice)}</td>
-                            </tr>
-                        )) : (
-                            <tr><td colSpan={4} className="p-4 text-center text-muted-foreground">No items found.</td></tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-});
-
+import { TransferDetails } from './orders/TransferDetails';
 
 // Sub-component for showing order items
-const OrderDetails: React.FC<{ orderId: string }> = React.memo(({ orderId }) => {
-    const [items, setItems] = useState<EnrichedOrderItem[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-        setLoading(true);
-        api.getOrderItems(orderId)
-            .then(data => {
-                setItems(data || []);
-                setLoading(false);
-            })
-            .catch(err => {
-                console.error("Failed to load order items:", err);
-                setError(err instanceof Error ? err.message : "Failed to load items.");
-                setLoading(false);
-            });
-    }, [orderId]);
-
-    if (loading) return <div className="p-4"><Loader text="Loading items..." /></div>
-    if (error) return <div className="p-4 text-destructive text-sm font-medium">Error: {error}</div>;
-
-    return (
-        <div className="bg-card p-4 rounded-lg border border-border">
-            <h4 className="font-bold mb-2 text-foreground">Order Items</h4>
-            <div className="overflow-x-auto">
-                <table className="w-full bg-card rounded-md min-w-[500px] text-sm">
-                    <thead className="bg-muted text-muted-foreground uppercase font-semibold text-xs border-b border-border">
-                        <tr className="text-left border-b border-border">
-                            <th className="p-3 font-semibold">Product</th>
-                            <th className="p-3 font-semibold text-center">Delivered</th>
-                            <th className="p-3 font-semibold text-center">Returned</th>
-                            <th className="p-3 font-semibold text-right">Unit Price</th>
-                            <th className="p-3 font-semibold text-right">Subtotal</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {items.length > 0 ? items.map((item) => (
-                            <tr key={item.id} className={`border-b border-border last:border-none ${item.isFreebie ? 'bg-success/10' : ''}`}>
-                                <td className="p-2 text-foreground">{item.skuName} {item.isFreebie && <Gift size={12} className="inline ml-1 text-success" />}</td>
-                                <td className="p-2 text-center text-foreground">{item.quantity}</td>
-                                <td className="p-2 text-center text-destructive">{item.returnedQuantity > 0 ? item.returnedQuantity : '-'}</td>
-                                <td className="p-2 text-right text-foreground">{formatIndianCurrency(item.unitPrice)}</td>
-                                <td className="p-2 font-semibold text-right text-foreground">{formatIndianCurrency(item.quantity * item.unitPrice)}</td>
-                            </tr>
-                        )) : (
-                            <tr><td colSpan={5} className="p-4 text-center text-muted-foreground">No items found.</td></tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-});
+import { OrderDetails } from './orders/OrderDetails';
 
 // Helper for Small Order Warning
 const getSmallOrderWarning = (order: Order, allOrders: any[]) => {
@@ -166,71 +62,72 @@ const OrderHistory: React.FC = () => {
     const { currentUser, portal } = useAuth();
     const navigate = useNavigate();
 
+    // Use Custom Hook for Order Management
+    const {
+        loading: ordersLoading,
+        orders, // although we use sortedOrders mostly
+        distributors, // exposed if needed
+        stores, // exposed if needed
+        fetchData: refreshOrders,
+        dateRange,
+        setDateRange,
+        orderSearchTerm,
+        setOrderSearchTerm,
+        orderStatusFilter,
+        setOrderStatusFilter,
+        sourceFilter,
+        setSourceFilter,
+        sortedOrders,
+        requestOrderSort,
+        orderSortConfig,
+        summaryStats
+    } = useOrderManagement(portal, currentUser);
+
     // Common state
-    const [loading, setLoading] = useState(true);
     const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [activeTab, setActiveTab] = useState<'orders' | 'dispatches'>('orders');
 
-    // Order state
-    const [orders, setOrders] = useState<Order[]>([]);
-    const [distributors, setDistributors] = useState<Distributor[]>([]);
-    const [stores, setStores] = useState<Store[]>([]);
+    // Order state unique to UI (Modals, expansion)
     const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
     const [editingOrder, setEditingOrder] = useState<Order | null>(null);
     const [deletingOrder, setDeletingOrder] = useState<Order | null>(null);
     const [returningOrder, setReturningOrder] = useState<Order | null>(null);
-    const [deliveringOrder, setDeliveringOrder] = useState<Order | null>(null); // New state for modal
+    const [deliveringOrder, setDeliveringOrder] = useState<Order | null>(null);
     const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
-    const [orderSearchTerm, setOrderSearchTerm] = useState('');
-    const [orderStatusFilter, setOrderStatusFilter] = useState<OrderStatus | 'all'>('all');
-    const [sourceFilter, setSourceFilter] = useState<'all' | 'plant' | 'store'>('all');
     const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
 
     // Bulk Actions State
     const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
+    const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
     // Dispatch state
     const [transfers, setTransfers] = useState<EnrichedStockTransfer[]>([]);
+    const [transfersLoading, setTransfersLoading] = useState(false);
     const [expandedTransferId, setExpandedTransferId] = useState<string | null>(null);
     const [updatingTransferId, setUpdatingTransferId] = useState<string | null>(null);
     const [dispatchSearchTerm, setDispatchSearchTerm] = useState('');
     const [dispatchStatusFilter, setDispatchStatusFilter] = useState<StockTransferStatus | 'all'>('all');
     const [downloadingNoteId, setDownloadingNoteId] = useState<string | null>(null);
 
-    const getInitialDateRange = () => {
-        const to = new Date();
-        const from = new Date();
-        from.setMonth(to.getMonth() - 1);
-        to.setHours(23, 59, 59, 999);
-        from.setHours(0, 0, 0, 0);
-        return { from, to };
-    };
-    const [dateRange, setDateRange] = useState(getInitialDateRange());
-
-    const fetchData = useCallback(async () => {
-        if (!portal) return;
-        setLoading(true);
+    const fetchTransfers = useCallback(async () => {
+        setTransfersLoading(true);
         try {
-            const [orderData, distributorData, transferData, storeData] = await Promise.all([
-                api.getOrders(portal, dateRange),
-                api.getDistributors(portal),
-                api.getStockTransfers(dateRange),
-                api.getStores(),
-            ]);
-            setOrders(orderData);
-            setDistributors(distributorData);
+            const transferData = await api.getStockTransfers(dateRange);
             setTransfers(transferData);
-            setStores(storeData);
         } catch (error) {
-            console.error("Failed to fetch data:", error);
+            console.error("Failed to fetch transfers:", error);
         } finally {
-            setLoading(false);
+            setTransfersLoading(false);
         }
-    }, [portal, dateRange]);
+    }, [dateRange]);
 
     useEffect(() => {
-        fetchData();
-    }, [fetchData]);
+        fetchTransfers();
+    }, [fetchTransfers]);
+
+    const fetchData = async () => {
+        await Promise.all([refreshOrders(), fetchTransfers()]);
+    };
 
     const showDispatches = currentUser?.role === UserRole.PLANT_ADMIN;
 
@@ -288,56 +185,7 @@ const OrderHistory: React.FC = () => {
     };
     const toggleOrderExpand = (orderId: string) => !updatingOrderId && setExpandedOrderId(prev => prev === orderId ? null : orderId);
 
-    const storeMap = useMemo(() => new Map(stores.map(s => [s.id, s.name])), [stores]);
-    const distributorMap = useMemo(() => new Map(distributors.map(d => [d.id, d])), [distributors]);
-
-    const filteredOrders = useMemo(() => {
-        return orders.map(o => {
-            const distributor = distributorMap.get(o.distributorId);
-            return {
-                ...o,
-                distributorName: distributor?.name || 'Unknown',
-                assignment: distributor?.storeId ? storeMap.get(distributor.storeId) || 'Store' : 'Plant'
-            }
-        }).filter(o => {
-            const isPlantAdminView = currentUser?.role === UserRole.PLANT_ADMIN && portal?.type === 'plant';
-
-            const sourceMatch = !isPlantAdminView || sourceFilter === 'all' ||
-                (sourceFilter === 'plant' && o.assignment === 'Plant') ||
-                (sourceFilter === 'store' && o.assignment !== 'Plant');
-
-            const searchMatch = (o.id.toLowerCase().includes(orderSearchTerm.toLowerCase()) || o.distributorName.toLowerCase().includes(orderSearchTerm.toLowerCase()));
-            const statusMatch = (orderStatusFilter === 'all' || o.status === orderStatusFilter);
-
-            return sourceMatch && searchMatch && statusMatch;
-        });
-    }, [orders, orderSearchTerm, orderStatusFilter, sourceFilter, distributorMap, storeMap, currentUser?.role, portal?.type]);
-
-    const { items: sortedOrders, requestSort: requestOrderSort, sortConfig: orderSortConfig } = useSortableData(filteredOrders, { key: 'date', direction: 'descending' });
-
-    // Summary Stats Calculation
-    const summaryStats = useMemo(() => {
-        const totalOrders = filteredOrders.length;
-        const pendingValue = filteredOrders
-            .filter(o => o.status === OrderStatus.PENDING)
-            .reduce((sum, o) => sum + o.totalAmount, 0);
-        const deliveredValue = filteredOrders
-            .filter(o => o.status === OrderStatus.DELIVERED)
-            .reduce((sum, o) => sum + o.totalAmount, 0);
-
-        let oldestPendingDays = 0;
-        const pendingDates = filteredOrders
-            .filter(o => o.status === OrderStatus.PENDING)
-            .map(o => new Date(o.date).getTime());
-
-        if (pendingDates.length > 0) {
-            const oldestDate = Math.min(...pendingDates);
-            const diffTime = Math.abs(new Date().getTime() - oldestDate);
-            oldestPendingDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        }
-
-        return { totalOrders, pendingValue, deliveredValue, oldestPendingDays };
-    }, [filteredOrders]);
+    // Memoized data logic removed (handled by hook)
 
     // Bulk Actions Logic
     const toggleOrderSelection = (orderId: string) => {
@@ -361,7 +209,7 @@ const OrderHistory: React.FC = () => {
 
     const handleBulkDeliver = async () => {
         if (!confirm(`Mark ${selectedOrderIds.size} orders as Delivered?`)) return;
-        setLoading(true);
+        setBulkActionLoading(true);
         // Sequential for validation but can be parallelized in backend. Since backend seems to handle one by one:
         try {
             // Note: Ideally backend should support bulk update. 
@@ -377,7 +225,7 @@ const OrderHistory: React.FC = () => {
             console.error(e);
             setStatusMessage({ type: 'error', text: "Some orders failed to update." });
         } finally {
-            setLoading(false);
+            setBulkActionLoading(false);
         }
     };
 
@@ -516,7 +364,7 @@ const OrderHistory: React.FC = () => {
                                 <div className="flex items-center gap-2 bg-primary/10 text-primary px-3 py-1.5 rounded-md animate-in fade-in slide-in-from-top-2">
                                     <span className="text-sm font-bold">{selectedOrderIds.size} selected</span>
                                     <div className="h-4 w-px bg-primary/20 mx-2"></div>
-                                    <Button size="sm" variant="default" className='h-7 text-xs' onClick={handleBulkDeliver} isLoading={loading}>Bulk Deliver</Button>
+                                    <Button size="sm" variant="default" className='h-7 text-xs' onClick={handleBulkDeliver} isLoading={bulkActionLoading}>Bulk Deliver</Button>
                                     <Button size="sm" variant="destructive" className='h-7 text-xs' onClick={handleBulkDelete} disabled>Delete (Disabled)</Button>
                                     <Button size="sm" variant="secondary" className='h-7 text-xs' onClick={() => setSelectedOrderIds(new Set())}>Clear</Button>
                                 </div>
@@ -725,7 +573,7 @@ const OrderHistory: React.FC = () => {
                             })}
                         </div>
 
-                        {loading ? <div className="p-8"><Loader text="Loading orders..." /></div> : sortedOrders.length === 0 && <p className="text-center p-8 text-contentSecondary">No orders found.</p>}
+                        {ordersLoading ? <div className="p-8"><Loader text="Loading orders..." /></div> : sortedOrders.length === 0 && <p className="text-center p-8 text-contentSecondary">No orders found.</p>}
                     </div>
                 )}
 
@@ -795,7 +643,7 @@ const OrderHistory: React.FC = () => {
                             </table>
                         </div>
                         {/* Mobile view for dispatches omitted for brevity, logic follows same pattern */}
-                        {loading ? <div className="p-8"><Loader text="Loading dispatches..." /></div> : sortedTransfers.length === 0 && <p className="text-center p-8 text-contentSecondary">No dispatches found.</p>}
+                        {transfersLoading ? <div className="p-8"><Loader text="Loading dispatches..." /></div> : sortedTransfers.length === 0 && <p className="text-center p-8 text-contentSecondary">No dispatches found.</p>}
                     </div>
                 )}
             </Card >

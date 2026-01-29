@@ -11,7 +11,7 @@ interface LoaderProps {
 const Loader: React.FC<LoaderProps> = ({
     fullScreen = false,
     size = 'md',
-    text = 'Loading...',
+    text = 'Loading…',
     className = ''
 }) => {
     const sizeClasses = {

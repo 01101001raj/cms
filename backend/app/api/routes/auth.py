@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from app.models.schemas import LoginRequest, User
+from app.models import LoginRequest, User
 from app.core.supabase import get_supabase_client
 from supabase import Client
 

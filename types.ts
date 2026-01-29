@@ -328,3 +328,23 @@ export interface DispatchNoteData {
   store: Store;
   items: EnrichedStockTransferItem[];
 }
+
+export interface StockInfo {
+  quantity: number;
+  reserved: number;
+}
+
+export interface DisplayItem {
+  skuId: string;
+  skuName: string;
+  quantity: number;
+  unitPrice: number;
+  isFreebie: boolean;
+  schemeSource?: string;
+  hasTierPrice: boolean;
+}
+
+export interface AppliedSchemeInfo {
+  scheme: Scheme;
+  timesApplied: number;
+}

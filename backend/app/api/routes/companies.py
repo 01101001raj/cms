@@ -1,6 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, status, Response
 from typing import List
-from app.models.schemas import Company, CompanyCreate
+from app.models import Company, CompanyCreate
 from app.core.supabase import get_supabase_client, get_supabase_admin_client
 from supabase import Client
 
@@ -63,7 +63,7 @@ async def get_company_by_id(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("", response_model=Company)
+@router.post("", response_model=Company, status_code=status.HTTP_201_CREATED)
 async def create_company(
     company: CompanyCreate,
     supabase: Client = Depends(get_supabase_admin_client)
@@ -104,7 +104,7 @@ async def update_company(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/{company_id}")
+@router.delete("/{company_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_company(
     company_id: str,
     supabase: Client = Depends(get_supabase_admin_client)
@@ -114,6 +114,6 @@ async def delete_company(
     """
     try:
         response = supabase.table("companies").delete().eq("id", company_id).execute()
-        return {"message": "Company deleted successfully"}
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

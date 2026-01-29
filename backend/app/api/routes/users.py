@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, status, Response
+from app.core.auth import get_current_user, CurrentUser
 from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from app.core.supabase import get_supabase_admin_client
@@ -36,9 +37,10 @@ class UserResponse(BaseModel):
     asmId: Optional[str] = None
 
 
-@router.post("", response_model=UserResponse)
+@router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
     user_data: UserCreate,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_admin_client)
 ):
     """
@@ -92,8 +94,8 @@ async def create_user(
         # Audit log
         await log_user_created(
             new_user_id=user["id"],
-            admin_id="system",
-            admin_username="system",
+            admin_id=current_user.id,
+            admin_username=current_user.email,
             user_data={"username": user_data.username, "role": user_data.role}
         )
         
@@ -113,6 +115,7 @@ async def create_user(
 async def update_user(
     user_id: str,
     user_data: UserUpdate,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_admin_client)
 ):
     """
@@ -160,8 +163,8 @@ async def update_user(
         # Audit log
         await log_user_updated(
             user_id=user_id,
-            admin_id="system",
-            admin_username="system",
+            admin_id=current_user.id,
+            admin_username=current_user.email,
             changes=profile_update
         )
         
@@ -183,9 +186,10 @@ async def update_user(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/{user_id}")
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     user_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_admin_client)
 ):
     """
@@ -206,12 +210,12 @@ async def delete_user(
         # Audit log
         await log_user_deleted(
             deleted_user_id=user_id,
-            admin_id="system",
-            admin_username="system",
+            admin_id=current_user.id,
+            admin_username=current_user.email,
             deleted_username=deleted_username
         )
         
-        return {"message": "User deleted successfully"}
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
         
     except AuthApiError as e:
         # If auth deletion fails but profile was deleted, that's still partial success

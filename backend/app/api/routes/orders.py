@@ -1,8 +1,8 @@
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, status, Response
 from typing import List, Optional
-from app.models.schemas import Order, OrderCreate, OrderItem, OrderStatus
+from app.models import Order, OrderCreate, OrderItem, OrderStatus
 from app.core.supabase import get_supabase_client, get_supabase_admin_client
-from app.core.auth import get_current_user_optional, CurrentUser
+from app.core.auth import get_current_user, CurrentUser
 from supabase import Client
 from datetime import datetime
 import uuid
@@ -65,9 +65,10 @@ async def get_order_items(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("", response_model=Order)
+@router.post("", response_model=Order, status_code=status.HTTP_201_CREATED)
 async def create_order(
     order_data: OrderCreate,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_admin_client)
 ):
     """
@@ -139,7 +140,7 @@ async def create_order(
             "total_amount": total_amount,
             "shipment_size": total_shipment_size,
             "status": OrderStatus.PENDING.value,
-            "placed_by_exec_id": order_data.username,
+            "placed_by_exec_id": current_user.email,
             "approval_granted_by": order_data.approvalGrantedBy
         }
 
@@ -187,14 +188,14 @@ async def create_order(
             "amount": -total_amount,
             "balance_after": new_balance,
             "order_id": order_id,
-            "initiated_by": order_data.username
+            "initiated_by": current_user.email
         }).execute()
 
         # Audit log
         await log_order_created(
             order_id=order_id,
-            user_id=order_data.username,
-            username=order_data.username,
+            user_id=current_user.id,
+            username=current_user.email,
             order_data={"distributor_id": order_data.distributorId, "total_amount": total_amount, "items_count": len(order_items)}
         )
 
@@ -213,6 +214,7 @@ async def create_order(
 async def update_order_items(
     order_id: str,
     order_data: OrderCreate,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_admin_client)
 ):
     """
@@ -297,7 +299,7 @@ async def update_order_items(
                 "amount": -amount_delta,
                 "balance_after": new_balance,
                 "order_id": order_id,
-                "initiated_by": order_data.username,
+                "initiated_by": current_user.email,
                 "remarks": "Order Edit Adjustment"
             }).execute()
 
@@ -316,7 +318,7 @@ async def update_order_items(
 async def update_order_status(
     order_id: str,
     status: OrderStatus,
-    username: str,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_client)
 ):
     """
@@ -354,18 +356,18 @@ async def update_order_status(
 
         # Audit log for delivery
         if status == OrderStatus.DELIVERED:
-            await log_order_delivered(order_id=order_id, user_id=username, username=username)
+            await log_order_delivered(order_id=order_id, user_id=current_user.id, username=current_user.email)
 
         return {"message": "Order status updated successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/{order_id}")
+@router.delete("/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_order(
     order_id: str,
     remarks: str,
-    username: str,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_client)
 ):
     """
@@ -403,7 +405,7 @@ async def delete_order(
                 "amount": order.data["total_amount"],
                 "balance_after": new_balance,
                 "order_id": order_id,
-                "initiated_by": username,
+                "initiated_by": current_user.email,
                 "remarks": remarks
             }).execute()
 
@@ -414,8 +416,8 @@ async def delete_order(
         supabase.table("orders").delete().eq("id", order_id).execute()
 
         # Audit log
-        await log_order_deleted(order_id=order_id, user_id=username, username=username, remarks=remarks)
+        await log_order_deleted(order_id=order_id, user_id=current_user.id, username=current_user.email, remarks=remarks)
 
-        return {"message": "Order deleted successfully"}
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

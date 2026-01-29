@@ -9,8 +9,8 @@ import { KeyRound, CheckCircle, XCircle, Eye, EyeOff } from 'lucide-react';
 import { AuthSession } from '@supabase/supabase-js';
 
 interface FormInputs {
-  password: string;
-  confirmPassword: string;
+    password: string;
+    confirmPassword: string;
 }
 
 const UpdatePasswordPage: React.FC = () => {
@@ -39,7 +39,7 @@ const UpdatePasswordPage: React.FC = () => {
             subscription.unsubscribe();
         };
     }, []);
-    
+
     const handlePasswordUpdate: SubmitHandler<FormInputs> = async (data) => {
         if (data.password !== data.confirmPassword) {
             setError('Passwords do not match.');
@@ -56,7 +56,7 @@ const UpdatePasswordPage: React.FC = () => {
             // FIX: Cast `supabase.auth` to `any` to access `updateUser`.
             const { error } = await (supabase.auth as any).updateUser({ password: data.password });
             if (error) throw error;
-            
+
             setSuccessMessage('Your password has been updated successfully! Redirecting you to the login page...');
             // FIX: Cast `supabase.auth` to `any` to access `signOut`.
             await (supabase.auth as any).signOut();
@@ -87,7 +87,7 @@ const UpdatePasswordPage: React.FC = () => {
                     )}
                     {successMessage && (
                         <div className="flex flex-col items-center text-center p-4">
-                            <CheckCircle size={48} className="text-green-500 mb-4"/>
+                            <CheckCircle size={48} className="text-green-500 mb-4" />
                             <h3 className="text-lg font-semibold">Success!</h3>
                             <p className="text-contentSecondary mt-2">{successMessage}</p>
                         </div>
@@ -100,21 +100,23 @@ const UpdatePasswordPage: React.FC = () => {
                             <Input
                                 id="password"
                                 label="New Password"
-                                type={showPassword ? "text" : "password"}             
-                                {...register('password', { 
+                                type={showPassword ? "text" : "password"}
+                                {...register('password', {
                                     required: 'Password is required',
                                     minLength: { value: 6, message: 'Password must be at least 6 characters long' }
                                 })}
                                 error={errors.password?.message}
+                                autoComplete="new-password"
                                 rightIcon={showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                 onRightIconClick={() => setShowPassword(!showPassword)}
                             />
-                             <Input
+                            <Input
                                 id="confirmPassword"
                                 label="Confirm New Password"
-                                type="password"          
+                                type="password"
                                 {...register('confirmPassword', { required: 'Please confirm your password' })}
                                 error={errors.confirmPassword?.message}
+                                autoComplete="new-password"
                             />
                             {error && (
                                 <div className="flex items-center p-3 rounded-md mt-4 text-sm bg-red-100 text-red-800">

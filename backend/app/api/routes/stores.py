@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, status, Response
+from app.core.auth import get_current_user, CurrentUser
 from typing import List
-from app.models.schemas import Store, StoreCreate
+from app.models import Store, StoreCreate, PortalState
 from app.core.supabase import get_supabase_client
 from supabase import Client
 from app.services.audit import log_store_created, log_store_updated
@@ -33,9 +34,10 @@ async def get_store_by_id(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("", response_model=Store)
+@router.post("", response_model=Store, status_code=status.HTTP_201_CREATED)
 async def create_store(
     store: StoreCreate,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_client)
 ):
     """Create a new store"""
@@ -50,8 +52,8 @@ async def create_store(
         # Audit log
         await log_store_created(
             store_id=response.data[0]["id"],
-            user_id="system",
-            username="system",
+            user_id=current_user.id,
+            username=current_user.email,
             store_name=store.name
         )
         
@@ -64,6 +66,7 @@ async def create_store(
 async def update_store(
     store_id: str,
     store: StoreCreate,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_client)
 ):
     """Update store information"""
@@ -75,8 +78,8 @@ async def update_store(
         # Audit log
         await log_store_updated(
             store_id=store_id,
-            user_id="system",
-            username="system",
+            user_id=current_user.id,
+            username=current_user.email,
             store_name=store.name
         )
         
@@ -85,7 +88,7 @@ async def update_store(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/{store_id}")
+@router.delete("/{store_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_store(
     store_id: str,
     supabase: Client = Depends(get_supabase_client)
@@ -93,6 +96,6 @@ async def delete_store(
     """Delete a store"""
     try:
         response = supabase.table("stores").delete().eq("id", store_id).execute()
-        return {"message": "Store deleted successfully"}
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

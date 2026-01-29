@@ -1,6 +1,9 @@
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, status, Response
 from typing import List, Optional
-from app.models.schemas import StockItem, StockProduction, StockTransfer, StockTransferCreate, StockTransferStatus
+from app.models import (
+    StockItem, StockProduction, StockTransfer, StockTransferCreate, StockTransferStatus
+)
+from app.core.auth import get_current_user, CurrentUser
 from app.core.supabase import get_supabase_client
 from supabase import Client
 from datetime import datetime
@@ -30,9 +33,10 @@ async def get_stock(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/production")
+@router.post("/production", status_code=status.HTTP_201_CREATED)
 async def add_production(
     production: StockProduction,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_client)
 ):
     """
@@ -69,15 +73,15 @@ async def add_production(
                 "balanceAfter": new_qty if existing.data else quantity,
                 "type": "PRODUCTION",
                 "locationId": PLANT_LOCATION_ID,
-                "notes": f"Production added by {production.username}",
-                "initiatedBy": production.username
+                "notes": f"Production added by {current_user.email}",
+                "initiatedBy": current_user.email
             }).execute()
             
             # Audit log for each item
             await log_stock_production(
                 sku_id=sku_id,
-                user_id=production.username,
-                username=production.username,
+                user_id=current_user.id,
+                username=current_user.email,
                 quantity=quantity,
                 location="Plant"
             )
@@ -87,9 +91,10 @@ async def add_production(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/transfers", response_model=StockTransfer)
+@router.post("/transfers", response_model=StockTransfer, status_code=status.HTTP_201_CREATED)
 async def create_stock_transfer(
     transfer: StockTransferCreate,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_client)
 ):
     """
@@ -115,7 +120,7 @@ async def create_stock_transfer(
             "destinationStoreId": transfer.storeId,
             "date": datetime.utcnow().isoformat(),
             "status": StockTransferStatus.PENDING.value,
-            "initiatedBy": transfer.username,
+            "initiatedBy": current_user.email,
             "totalValue": total_value
         }
 
@@ -149,8 +154,8 @@ async def create_stock_transfer(
         # Audit log
         await log_transfer_created(
             transfer_id=transfer_id,
-            user_id=transfer.username,
-            username=transfer.username,
+            user_id=current_user.id,
+            username=current_user.email,
             destination=store_name,
             total_value=total_value
         )
@@ -188,7 +193,7 @@ async def get_stock_transfers(
 async def update_transfer_status(
     transfer_id: str,
     status: StockTransferStatus,
-    username: str,
+    current_user: CurrentUser = Depends(get_current_user),
     supabase: Client = Depends(get_supabase_client)
 ):
     """
@@ -236,8 +241,8 @@ async def update_transfer_status(
             # Audit log
             await log_transfer_delivered(
                 transfer_id=transfer_id,
-                user_id=username,
-                username=username
+                user_id=current_user.id,
+                username=current_user.email
             )
 
         return {"message": "Transfer status updated successfully"}

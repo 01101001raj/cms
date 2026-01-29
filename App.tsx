@@ -7,6 +7,7 @@ import { useAuth } from './hooks/useAuth';
 import { useSessionManager } from './hooks/useSessionManager';
 import { Loader2 } from 'lucide-react';
 import { Toaster } from './components/ui/sonner';
+import { MasterDataProvider } from './contexts/MasterDataContext';
 
 // Protected Route Wrapper
 import ProtectedRoute from './components/ProtectedRoute';
@@ -143,9 +144,11 @@ const App: React.FC = () => {
     <ThemeProvider>
       <ToastProvider>
         <QueryClientProvider client={queryClient}>
-          <div className="flex flex-col min-h-screen bg-background text-content font-sans">
-            <AppRoutes />
-          </div>
+          <MasterDataProvider>
+            <div className="flex flex-col min-h-screen bg-background text-content font-sans">
+              <AppRoutes />
+            </div>
+          </MasterDataProvider>
           <Toaster />
         </QueryClientProvider>
       </ToastProvider>
